@@ -1,0 +1,1382 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>🎤 Kho Nhạc</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
+
+/* ── THEME ── */
+:root {
+  --bg:       #0a0a0a;
+  --s1:       #111;
+  --s2:       #1a1a1a;
+  --s3:       #222;
+  --border:   rgba(255,255,255,0.07);
+  --border2:  rgba(255,255,255,0.13);
+  --text:     #f0f0f0;
+  --muted:    #777;
+  --dim:      #444;
+  --gold:     #f5c518;
+  --red:      #ff4757;
+  --green:    #2ed573;
+  --blue:     #5352ed;
+  --purple:   #a55eea;
+  --font-h:   'Syne', sans-serif;
+  --font-b:   'DM Sans', sans-serif;
+  --r:        12px;
+  --r-lg:     18px;
+}
+[data-theme="light"] {
+  --bg:       #f2f0eb;
+  --s1:       #fff;
+  --s2:       #f7f5f0;
+  --s3:       #ede9e0;
+  --border:   rgba(0,0,0,0.08);
+  --border2:  rgba(0,0,0,0.15);
+  --text:     #111;
+  --muted:    #666;
+  --dim:      #aaa;
+  --gold:     #c49b00;
+  --red:      #d63031;
+  --green:    #00b894;
+  --blue:     #3c3be0;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--text); font-family: var(--font-b); font-size: 14px; line-height: 1.5; }
+
+/* ── LAYOUT ── */
+#app { max-width: 480px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
+.page { display: none; flex: 1; flex-direction: column; padding-bottom: 72px; }
+.page.active { display: flex; }
+
+/* ── TOPBAR ── */
+.topbar {
+  background: var(--s1); border-bottom: 1px solid var(--border);
+  padding: 14px 16px 0; position: sticky; top: 0; z-index: 50;
+}
+.topbar-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.logo { font-family: var(--font-h); font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+.logo em { color: var(--gold); font-style: normal; }
+.topbar-actions { display: flex; gap: 6px; align-items: center; }
+.icon-btn {
+  background: var(--s2); border: 1px solid var(--border); border-radius: 9px;
+  padding: 7px 10px; font-size: 14px; cursor: pointer; color: var(--text);
+  transition: background .15s;
+}
+.icon-btn:active { opacity: .7; }
+
+/* ── BOTTOM NAV ── */
+.nav {
+  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+  width: 100%; max-width: 480px; background: var(--s1);
+  border-top: 1px solid var(--border); display: flex; z-index: 50;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.nav-btn {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  padding: 8px 4px 6px; cursor: pointer; border: none; background: none;
+  color: var(--muted); font-size: 10px; font-family: var(--font-b); gap: 3px;
+  transition: color .15s;
+}
+.nav-btn .ni { font-size: 20px; }
+.nav-btn.active { color: var(--gold); }
+
+/* ── INPUT / SELECT / TEXTAREA ── */
+input, select, textarea {
+  width: 100%; background: var(--s2); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 10px 13px; font-size: 14px;
+  color: var(--text); font-family: var(--font-b); outline: none;
+  transition: border-color .15s; -webkit-appearance: none;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--gold); }
+input::placeholder, textarea::placeholder { color: var(--dim); }
+select option { background: var(--s2); }
+textarea { resize: none; line-height: 1.6; }
+
+/* ── BUTTONS ── */
+.btn {
+  border: none; border-radius: var(--r); padding: 11px 16px;
+  font-size: 14px; font-weight: 600; cursor: pointer; font-family: var(--font-b);
+  transition: opacity .15s, transform .1s; display: inline-flex; align-items: center; gap: 6px;
+}
+.btn:active { transform: scale(.97); opacity: .85; }
+.btn-primary { background: var(--gold); color: #000; width: 100%; justify-content: center; }
+.btn-ghost { background: var(--s2); border: 1px solid var(--border); color: var(--text); }
+.btn-danger { background: rgba(255,71,87,.12); border: 1px solid rgba(255,71,87,.2); color: var(--red); }
+.btn-green  { background: rgba(46,213,115,.1);  border: 1px solid rgba(46,213,115,.2);  color: var(--green); }
+
+/* ── CARDS ── */
+.song-card {
+  background: var(--s1); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: 13px 15px; cursor: pointer;
+  transition: border-color .15s; position: relative; overflow: hidden;
+}
+.song-card:active { opacity: .85; }
+.song-card.bai_tu  { border-left: 3px solid var(--gold); }
+.song-card.hat_on  { border-left: 3px solid var(--blue); }
+.song-card.chua_thuoc { border-left: 3px solid var(--dim); }
+.card-title { font-family: var(--font-h); font-size: 15px; font-weight: 700; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-sub   { font-size: 12px; color: var(--muted); }
+.card-row   { display: flex; align-items: center; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+
+/* ── BADGES ── */
+.badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
+.badge-tu   { background: rgba(245,197,24,.15); color: var(--gold); }
+.badge-on   { background: rgba(83,82,237,.2);   color: #7f7eff; }
+.badge-chua { background: rgba(68,68,68,.3);    color: var(--dim); }
+.mood-tag   { font-size: 10px; padding: 2px 7px; border-radius: 8px; font-weight: 500; }
+.m-buon     { background: rgba(83,82,237,.18); color: #7f7eff; }
+.m-chill    { background: rgba(46,213,115,.15); color: var(--green); }
+.m-to_tinh  { background: rgba(255,107,157,.15); color: #ff6b9d; }
+.m-quay     { background: rgba(255,165,2,.15); color: #ffa502; }
+.m-nhau     { background: rgba(255,71,87,.15); color: var(--red); }
+
+/* ── CHIPS / FILTERS ── */
+.chip-row { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 0 16px 12px; }
+.chip-row::-webkit-scrollbar { display: none; }
+.chip {
+  background: var(--s1); border: 1px solid var(--border); border-radius: 20px;
+  padding: 5px 12px; font-size: 12px; white-space: nowrap; cursor: pointer;
+  color: var(--muted); transition: all .15s;
+}
+.chip.active { background: var(--gold); border-color: var(--gold); color: #000; font-weight: 700; }
+
+/* ── QUICK ADD ── */
+.quick-add {
+  margin: 0 16px 14px; background: var(--s1); border: 1px dashed var(--border2);
+  border-radius: var(--r); display: flex; gap: 8px; padding: 9px 12px; align-items: center;
+}
+.quick-add input { flex: 1; background: none; border: none; padding: 0; border-radius: 0; font-size: 13px; }
+.quick-add input:focus { border-color: transparent; }
+.qa-btn {
+  border: none; border-radius: 8px; padding: 5px 10px; font-size: 12px;
+  cursor: pointer; font-family: var(--font-b); font-weight: 600; white-space: nowrap;
+}
+.qa-ai { background: rgba(245,197,24,.12); color: var(--gold); border: 1px solid rgba(245,197,24,.25); }
+.qa-save { background: var(--s3); color: var(--muted); border: 1px solid var(--border); }
+
+/* ── SECTION HEADER ── */
+.sec-hdr {
+  padding: 2px 16px 10px; font-size: 11px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .6px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+
+/* ── SONG LIST ── */
+.song-list { padding: 0 12px; display: flex; flex-direction: column; gap: 8px; }
+
+/* ── EMPTY STATE ── */
+.empty { text-align: center; padding: 60px 20px; color: var(--dim); }
+.empty-icon { font-size: 44px; margin-bottom: 10px; }
+
+/* ── FAB ── */
+.fab {
+  position: fixed; bottom: 82px; right: 20px; width: 52px; height: 52px;
+  background: var(--gold); border-radius: 50%; border: none; font-size: 26px;
+  cursor: pointer; z-index: 40; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 20px rgba(245,197,24,.3); transition: transform .15s;
+}
+.fab:active { transform: scale(.93); }
+
+/* ── MODAL ── */
+.modal-bg {
+  position: fixed; inset: 0; background: rgba(0,0,0,.8); z-index: 200;
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.modal-bg.hidden { display: none; }
+.modal {
+  background: var(--s1); border-radius: 20px 20px 0 0;
+  padding: 20px 16px 32px; width: 100%; max-width: 480px;
+  max-height: 92vh; overflow-y: auto;
+}
+.modal-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.modal-title { font-family: var(--font-h); font-size: 17px; font-weight: 700; }
+.close-btn {
+  background: var(--s2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 5px 10px; font-size: 13px; cursor: pointer; color: var(--muted);
+}
+
+/* ── FORM ── */
+.field { margin-bottom: 12px; }
+.field label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: .4px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.mood-pick { display: flex; gap: 6px; flex-wrap: wrap; }
+.mood-opt {
+  padding: 5px 11px; border-radius: 20px; font-size: 12px; cursor: pointer;
+  border: 1px solid var(--border); color: var(--muted); background: var(--s2);
+  transition: all .12s;
+}
+.mood-opt.sel { border-color: transparent; }
+.mood-opt[data-m="buon"].sel    { background: rgba(83,82,237,.25); color: #7f7eff; }
+.mood-opt[data-m="chill"].sel   { background: rgba(46,213,115,.2); color: var(--green); }
+.mood-opt[data-m="to_tinh"].sel { background: rgba(255,107,157,.2); color: #ff6b9d; }
+.mood-opt[data-m="quay"].sel    { background: rgba(255,165,2,.2); color: #ffa502; }
+.mood-opt[data-m="nhau"].sel    { background: rgba(255,71,87,.2); color: var(--red); }
+
+.star-row { display: flex; gap: 5px; }
+.star { font-size: 20px; cursor: pointer; color: var(--dim); transition: color .1s; }
+.star.on { color: var(--gold); }
+.star.on-red { color: var(--red); }
+
+.status-row { display: flex; gap: 6px; }
+.status-opt {
+  flex: 1; padding: 8px 4px; border-radius: 9px; font-size: 11px; font-weight: 700;
+  cursor: pointer; text-align: center; border: 1px solid var(--border);
+  background: var(--s2); color: var(--dim); transition: all .12s;
+}
+.status-opt.sel-chua  { background: rgba(68,68,68,.3);    color: #aaa;          border-color: var(--dim); }
+.status-opt.sel-on    { background: rgba(83,82,237,.2);   color: #7f7eff;       border-color: var(--blue); }
+.status-opt.sel-tu    { background: rgba(245,197,24,.15); color: var(--gold);   border-color: var(--gold); }
+
+.key-row { display: flex; gap: 3px; }
+.key-opt {
+  flex: 1; padding: 7px 3px; border-radius: 7px; font-size: 10px; font-weight: 700;
+  cursor: pointer; text-align: center; border: 1px solid var(--border);
+  background: var(--s2); color: var(--dim); transition: all .12s;
+}
+.key-opt.sel { background: rgba(165,94,234,.25); color: var(--purple); border-color: var(--purple); }
+
+.ai-fill-btn {
+  width: 100%; background: rgba(245,197,24,.08); border: 1px dashed rgba(245,197,24,.35);
+  border-radius: var(--r); padding: 11px; font-size: 13px; color: var(--gold);
+  cursor: pointer; font-family: var(--font-b); font-weight: 600; margin-bottom: 14px;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.ai-fill-btn:disabled { opacity: .5; }
+
+/* ── DETAIL ── */
+.detail-head { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 14px; }
+.detail-icon { width: 68px; height: 68px; border-radius: 14px; background: var(--s2); display: flex; align-items: center; justify-content: center; font-size: 28px; flex-shrink: 0; }
+.detail-title { font-family: var(--font-h); font-size: 19px; font-weight: 800; }
+.detail-sub   { font-size: 13px; color: var(--muted); margin-top: 3px; }
+.detail-grid  { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+.detail-cell  { background: var(--s2); border-radius: 9px; padding: 9px 11px; }
+.detail-cell-label { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 3px; }
+.detail-btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+.sig-block { border-left: 3px solid var(--gold); padding-left: 10px; font-size: 13px; color: var(--muted); font-style: italic; line-height: 1.6; margin-bottom: 12px; }
+.lyrics-box { background: var(--s2); border-radius: var(--r); padding: 12px; font-size: 13px; line-height: 1.9; color: var(--muted); white-space: pre-wrap; max-height: 280px; overflow-y: auto; }
+
+/* ── KARAOKE MODE ── */
+.km-overlay {
+  position: fixed; inset: 0; background: #000; z-index: 300;
+  display: flex; flex-direction: column; max-width: 480px; left: 50%; transform: translateX(-50%);
+}
+.km-overlay.hidden { display: none; }
+.km-hdr { padding: 14px 16px 10px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,.06); }
+.km-title { font-family: var(--font-h); font-size: 14px; font-weight: 800; color: var(--gold); letter-spacing: 1px; }
+.km-search { padding: 10px 14px; }
+.km-search input { background: rgba(255,255,255,.07); border-color: rgba(255,255,255,.1); font-size: 15px; }
+.km-filters { display: flex; gap: 5px; padding: 0 14px 8px; overflow-x: auto; scrollbar-width: none; }
+.km-filters::-webkit-scrollbar { display: none; }
+.km-chip { padding: 4px 11px; border-radius: 16px; font-size: 11px; cursor: pointer; white-space: nowrap; background: rgba(255,255,255,.07); color: rgba(255,255,255,.5); border: none; font-family: var(--font-b); }
+.km-chip.active { background: var(--gold); color: #000; font-weight: 700; }
+.km-count { padding: 0 14px 6px; font-size: 11px; color: rgba(255,255,255,.25); text-transform: uppercase; letter-spacing: .5px; }
+.km-list { flex: 1; overflow-y: auto; padding: 0 12px 80px; }
+.km-item { display: flex; align-items: center; gap: 8px; padding: 13px 8px; border-bottom: 1px solid rgba(255,255,255,.05); }
+.km-info { flex: 1; min-width: 0; }
+.km-song-title { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff; font-family: var(--font-h); }
+.km-song-sub   { font-size: 12px; color: rgba(255,255,255,.4); margin-top: 2px; }
+.km-tu-badge   { font-size: 9px; font-weight: 800; background: rgba(245,197,24,.2); color: var(--gold); padding: 2px 6px; border-radius: 5px; flex-shrink: 0; }
+.km-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.km-btn { border: none; border-radius: 8px; padding: 8px 11px; font-size: 13px; cursor: pointer; }
+.km-copy { background: rgba(46,213,115,.15); color: var(--green); }
+.km-yt   { background: rgba(255,71,87,.18);  color: #ff6b6b; }
+
+/* ── SETTINGS ── */
+.settings-body { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+.setting-card { background: var(--s1); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 16px; }
+.setting-card-title { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 12px; font-weight: 600; }
+.stat-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
+.stat-cell { background: var(--s2); border-radius: 9px; padding: 10px 6px; text-align: center; }
+.stat-num { font-family: var(--font-h); font-size: 22px; font-weight: 800; color: var(--gold); }
+.stat-label { font-size: 10px; color: var(--dim); }
+
+/* ── TOAST ── */
+#toast {
+  position: fixed; bottom: 88px; left: 50%; transform: translateX(-50%);
+  background: var(--green); color: #000; padding: 9px 18px; border-radius: 20px;
+  font-size: 13px; font-weight: 700; z-index: 999; opacity: 0;
+  transition: opacity .2s; pointer-events: none; white-space: nowrap;
+}
+#toast.err { background: var(--red); color: #fff; }
+#toast.show { opacity: 1; }
+
+/* ── AI SUGGEST ── */
+.ai-suggest { margin: 0 16px 12px; background: rgba(165,94,234,.1); border: 1px solid rgba(165,94,234,.2); border-radius: var(--r); padding: 10px 12px; }
+.ai-suggest-hdr { font-size: 11px; color: var(--purple); font-weight: 700; margin-bottom: 4px; }
+
+/* ── RECENT / FORGOTTEN ── */
+.h-scroll { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 0 16px 12px; }
+.h-scroll::-webkit-scrollbar { display: none; }
+.mini-card { background: var(--s1); border: 1px solid var(--border); border-radius: var(--r); padding: 8px 12px; white-space: nowrap; cursor: pointer; flex-shrink: 0; font-size: 13px; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ══════════════════ PAGE: HOME ══════════════════ -->
+  <div id="page-home" class="page active">
+    <div class="topbar">
+      <div class="topbar-row">
+        <div class="logo">🎤 <em>Kho Nhạc</em></div>
+        <div class="topbar-actions">
+          <button class="icon-btn" id="btn-sync" title="Sync">⟳</button>
+          <button class="icon-btn" id="btn-theme" title="Toggle theme">🌙</button>
+          <button class="icon-btn" id="btn-km" title="Karaoke Mode" style="background:var(--red);border-color:var(--red);color:#fff;font-weight:700;">🎯</button>
+        </div>
+      </div>
+      <div style="padding:0 0 10px;">
+        <input id="search-inp" type="search" placeholder="Tìm bài, ca sĩ, mood...">
+      </div>
+    </div>
+
+    <div class="chip-row" id="filter-chips">
+      <div class="chip active" data-f="all">Tất cả</div>
+      <div class="chip" data-f="bai_tu">🔥 Bài tủ</div>
+      <div class="chip" data-f="hat_on">✅ Hát ổn</div>
+      <div class="chip" data-f="de_hat">😊 Dễ hát</div>
+      <div class="chip" data-f="buon">😢 Buồn</div>
+      <div class="chip" data-f="chill">🌙 Chill</div>
+      <div class="chip" data-f="to_tinh">💕 Tỏ tình</div>
+      <div class="chip" data-f="quay">🔥 Quẩy</div>
+      <div class="chip" data-f="nhau">🍺 Nhậu</div>
+    </div>
+
+    <div class="quick-add">
+      <span>⚡</span>
+      <input id="qa-inp" placeholder="Nhớ bài hay? Nhập tên + lưu nhanh..." autocomplete="off">
+      <button class="qa-btn qa-ai" id="qa-ai-btn">AI ✨</button>
+      <button class="qa-btn qa-save" id="qa-save-btn">Lưu</button>
+    </div>
+
+    <div id="ai-suggest-zone"></div>
+
+    <div id="recent-zone"></div>
+    <div id="forgotten-zone"></div>
+
+    <div class="sec-hdr">
+      <span>Danh sách</span>
+      <span id="list-count" style="color:var(--dim);font-size:11px;text-transform:none;letter-spacing:0;"></span>
+    </div>
+    <div class="song-list" id="song-list"></div>
+    <div style="height:8px;"></div>
+
+    <button class="fab" id="fab-add">+</button>
+  </div>
+
+  <!-- ══════════════════ PAGE: SETTINGS ══════════════════ -->
+  <div id="page-settings" class="page">
+    <div class="topbar">
+      <div class="topbar-row">
+        <div class="logo" style="font-size:17px;">⚙️ Cài đặt</div>
+      </div>
+    </div>
+    <div class="settings-body">
+      <div class="setting-card">
+        <div class="setting-card-title">📊 Thống kê</div>
+        <div class="stat-grid" id="stats-grid"></div>
+      </div>
+      <div class="setting-card">
+        <div class="setting-card-title">🤖 Groq API Key</div>
+        <div class="field">
+          <input id="groq-key-inp" type="password" placeholder="gsk_...">
+        </div>
+        <button class="btn btn-ghost" onclick="saveGroqKey()" style="width:100%;justify-content:center;">💾 Lưu Key</button>
+        <div style="font-size:11px;color:var(--dim);margin-top:8px;">Key lưu local, không gửi đi đâu ngoài Groq API.</div>
+      </div>
+      <div class="setting-card">
+        <div class="setting-card-title">☁️ Supabase Sync</div>
+        <div class="field"><label>Supabase URL</label><input id="sb-url-inp" placeholder="https://xxx.supabase.co"></div>
+        <div class="field"><label>Anon Key</label><input id="sb-key-inp" type="password" placeholder="eyJ..."></div>
+        <button class="btn btn-ghost" onclick="saveSupabaseConfig()" style="width:100%;justify-content:center;">💾 Lưu Config</button>
+        <div style="margin-top:10px;display:flex;gap:8px;">
+          <button class="btn btn-ghost" onclick="doSync('push')" style="flex:1;justify-content:center;">⬆ Push</button>
+          <button class="btn btn-ghost" onclick="doSync('pull')" style="flex:1;justify-content:center;">⬇ Pull</button>
+        </div>
+        <div id="sync-log" style="font-size:11px;color:var(--dim);margin-top:8px;"></div>
+      </div>
+      <div class="setting-card">
+        <div class="setting-card-title">📦 Backup</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-green" onclick="doExport()" style="flex:1;justify-content:center;">📤 Export JSON</button>
+          <button class="btn btn-ghost" onclick="triggerImport()" style="flex:1;justify-content:center;">📥 Import</button>
+        </div>
+        <input type="file" id="import-file" accept=".json" style="display:none" onchange="doImport(event)">
+      </div>
+      <div class="setting-card">
+        <div class="setting-card-title">🌗 Giao diện</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost" onclick="setTheme('dark')" id="theme-dark-btn" style="flex:1;justify-content:center;">🌙 Tối</button>
+          <button class="btn btn-ghost" onclick="setTheme('light')" id="theme-light-btn" style="flex:1;justify-content:center;">☀️ Sáng</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════ KARAOKE MODE OVERLAY ══════════════════ -->
+<div class="km-overlay hidden" id="km-overlay">
+  <div class="km-hdr">
+    <div class="km-title">🎤 KARAOKE MODE</div>
+    <div style="display:flex;gap:6px;">
+      <button onclick="randomTu()" style="background:rgba(245,197,24,.15);border:none;border-radius:8px;padding:7px 11px;font-size:12px;color:var(--gold);cursor:pointer;font-weight:700;">🎲 Random</button>
+      <button onclick="closeKM()" style="background:rgba(255,255,255,.08);border:none;border-radius:8px;padding:7px 12px;font-size:12px;color:#fff;cursor:pointer;">✕ Thoát</button>
+    </div>
+  </div>
+  <div class="km-search">
+    <input id="km-search-inp" placeholder="Tìm nhanh..." autocomplete="off">
+  </div>
+  <div class="km-filters" id="km-filters">
+    <button class="km-chip active" data-kf="all">Tất cả</button>
+    <button class="km-chip" data-kf="bai_tu">🔥 Bài tủ</button>
+    <button class="km-chip" data-kf="de_hat">😊 Dễ</button>
+    <button class="km-chip" data-kf="buon">😢 Buồn</button>
+    <button class="km-chip" data-kf="chill">🌙 Chill</button>
+    <button class="km-chip" data-kf="to_tinh">💕 Tỏ tình</button>
+    <button class="km-chip" data-kf="nhau">🍺 Nhậu</button>
+  </div>
+  <div class="km-count" id="km-count"></div>
+  <div class="km-list" id="km-list"></div>
+</div>
+
+<!-- ══════════════════ MODAL: ADD / EDIT ══════════════════ -->
+<div class="modal-bg hidden" id="modal-song">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-title" id="modal-song-title">Thêm bài mới</div>
+      <button class="close-btn" onclick="closeSongModal()">✕</button>
+    </div>
+    <button class="ai-fill-btn" id="ai-fill-btn" onclick="doAIFill()">✨ AI Autofill — nhập tên, tao điền hết</button>
+    <div id="ai-fill-status" style="font-size:12px;color:var(--muted);text-align:center;margin-bottom:10px;display:none;"></div>
+
+    <div class="field"><label>Tên bài *</label><input id="f-title" placeholder="VD: Người ta đâu có thương mình..."></div>
+    <div class="row2">
+      <div class="field"><label>Ca sĩ gốc</label><input id="f-artist" placeholder="Đàm Vĩnh Hưng"></div>
+      <div class="field"><label>Hát theo ai</label><input id="f-artist-pref" placeholder="(trống = giống trên)"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Nhạc sĩ</label><input id="f-composer" placeholder=""></div>
+      <div class="field">
+        <label>Thể loại</label>
+        <select id="f-genre">
+          <option value="">Chọn...</option>
+          <option>Bolero</option><option>Pop Việt</option><option>Nhạc Vàng</option>
+          <option>Nhạc Trẻ</option><option>Ballad</option><option>R&B</option>
+          <option>Rock</option><option>Dân Ca</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Mood</label>
+      <div class="mood-pick">
+        <div class="mood-opt" data-m="buon" onclick="toggleMood(this)">😢 Buồn</div>
+        <div class="mood-opt" data-m="chill" onclick="toggleMood(this)">🌙 Chill</div>
+        <div class="mood-opt" data-m="to_tinh" onclick="toggleMood(this)">💕 Tỏ tình</div>
+        <div class="mood-opt" data-m="quay" onclick="toggleMood(this)">🔥 Quẩy</div>
+        <div class="mood-opt" data-m="nhau" onclick="toggleMood(this)">🍺 Nhậu</div>
+      </div>
+    </div>
+
+    <div class="row2">
+      <div class="field">
+        <label>Độ khó</label>
+        <div class="star-row" id="diff-stars">
+          <span class="star on-red" data-v="1" onclick="setDiff(1)">★</span>
+          <span class="star" data-v="2" onclick="setDiff(2)">★</span>
+          <span class="star" data-v="3" onclick="setDiff(3)">★</span>
+          <span class="star" data-v="4" onclick="setDiff(4)">★</span>
+          <span class="star" data-v="5" onclick="setDiff(5)">★</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Tự chấm</label>
+        <div class="star-row" id="rating-stars">
+          <span class="star on" data-v="1" onclick="setRating(1)">★</span>
+          <span class="star" data-v="2" onclick="setRating(2)">★</span>
+          <span class="star" data-v="3" onclick="setRating(3)">★</span>
+          <span class="star" data-v="4" onclick="setRating(4)">★</span>
+          <span class="star" data-v="5" onclick="setRating(5)">★</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Tình trạng</label>
+      <div class="status-row">
+        <div class="status-opt sel-chua" data-s="chua_thuoc" onclick="setStatus(this)">📚 Chưa thuộc</div>
+        <div class="status-opt" data-s="hat_on" onclick="setStatus(this)">✅ Hát ổn</div>
+        <div class="status-opt" data-s="bai_tu" onclick="setStatus(this)">🔥 Bài tủ</div>
+      </div>
+    </div>
+
+    <div class="row2">
+      <div class="field">
+        <label>Giọng hợp</label>
+        <select id="f-voice">
+          <option value="">--</option>
+          <option value="thap">Thấp</option>
+          <option value="trung">Trung</option>
+          <option value="cao">Cao</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Key hay hát</label>
+        <div class="key-row" id="key-row">
+          <div class="key-opt" data-k="-3" onclick="setKey(this)">-3</div>
+          <div class="key-opt" data-k="-2" onclick="setKey(this)">-2</div>
+          <div class="key-opt" data-k="-1" onclick="setKey(this)">-1</div>
+          <div class="key-opt sel" data-k="0" onclick="setKey(this)">0</div>
+          <div class="key-opt" data-k="+1" onclick="setKey(this)">+1</div>
+          <div class="key-opt" data-k="+2" onclick="setKey(this)">+2</div>
+          <div class="key-opt" data-k="+3" onclick="setKey(this)">+3</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="field"><label>Ghi chú</label><textarea id="f-notes" rows="2" placeholder="VD: đoạn 2 dễ hụt hơi..."></textarea></div>
+    <div class="field"><label>Câu signature</label><textarea id="f-sig" rows="2" placeholder="Câu đặc trưng nhất bài..."></textarea></div>
+    <div class="field"><label>YouTube Karaoke</label><input id="f-yt" placeholder="https://youtube.com/..."></div>
+    <div class="field"><label>Full Lyrics</label><textarea id="f-lyrics" rows="5" placeholder="Dán lời vào đây..."></textarea></div>
+
+    <button class="btn btn-primary" onclick="saveSongForm()">💾 Lưu bài hát</button>
+    <input type="hidden" id="f-id">
+  </div>
+</div>
+
+<!-- ══════════════════ MODAL: DETAIL ══════════════════ -->
+<div class="modal-bg hidden" id="modal-detail">
+  <div class="modal" id="modal-detail-body"></div>
+</div>
+
+<!-- BOTTOM NAV -->
+<nav class="nav">
+  <button class="nav-btn active" data-page="home" onclick="switchPage('home',this)">
+    <span class="ni">🎵</span><span>Nhạc</span>
+  </button>
+  <button class="nav-btn" data-page="settings" onclick="switchPage('settings',this)">
+    <span class="ni">⚙️</span><span>Cài đặt</span>
+  </button>
+</nav>
+
+<div id="toast"></div>
+
+<!-- ══════════════════ JAVASCRIPT ══════════════════ -->
+<script>
+// ── CONSTANTS ────────────────────────────────────────────────────────────────
+const USER_ID = 'RongLeo'
+const APP_ID  = 'karaoke'
+const STORE_KEY = `${USER_ID}_${APP_ID}_songs_v1`
+const SETTINGS_KEY = `${USER_ID}_${APP_ID}_settings_v1`
+
+const MOOD_LABEL = { buon:'😢 Buồn', chill:'🌙 Chill', to_tinh:'💕 Tỏ tình', quay:'🔥 Quẩy', nhau:'🍺 Nhậu' }
+const MOOD_CLASS = { buon:'m-buon', chill:'m-chill', to_tinh:'m-to_tinh', quay:'m-quay', nhau:'m-nhau' }
+const STATUS_LABEL = { chua_thuoc:'📚 Chưa thuộc', hat_on:'✅ Hát ổn', bai_tu:'🔥 Bài tủ' }
+const GENRE_ICON = { Bolero:'🎻', 'Pop Việt':'🎵', 'Nhạc Vàng':'🎸', 'Nhạc Trẻ':'💿', Ballad:'🎹', 'R&B':'🎤', Rock:'🎸', 'Dân Ca':'🪗' }
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let songs = []
+let filterMode = 'all'
+let formDiff = 0, formRating = 0, formStatus = 'chua_thuoc', formKey = '0', formMoods = []
+let kmFilter = 'all'
+let settings = {}
+
+// ── STORAGE ───────────────────────────────────────────────────────────────────
+function loadSongs() {
+  try { songs = JSON.parse(localStorage.getItem(STORE_KEY) || '[]') } catch { songs = [] }
+}
+function saveSongs() { localStorage.setItem(STORE_KEY, JSON.stringify(songs)) }
+function loadSettings() {
+  try { settings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') } catch { settings = {} }
+}
+function saveSettingsStore() { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)) }
+
+// ── TOAST ─────────────────────────────────────────────────────────────────────
+let _toastTimer = null
+function toast(msg, type = 'ok') {
+  const el = document.getElementById('toast')
+  el.textContent = msg
+  el.className = type === 'err' ? 'err show' : 'show'
+  clearTimeout(_toastTimer)
+  _toastTimer = setTimeout(() => el.className = '', 2500)
+}
+
+// ── THEME ─────────────────────────────────────────────────────────────────────
+function setTheme(t) {
+  document.documentElement.setAttribute('data-theme', t)
+  settings.theme = t
+  saveSettingsStore()
+  document.getElementById('btn-theme').textContent = t === 'dark' ? '☀️' : '🌙'
+  document.getElementById('theme-dark-btn').style.borderColor = t === 'dark' ? 'var(--gold)' : ''
+  document.getElementById('theme-light-btn').style.borderColor = t === 'light' ? 'var(--gold)' : ''
+}
+
+// ── PAGE SWITCHING ────────────────────────────────────────────────────────────
+function switchPage(id, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'))
+  document.getElementById('page-' + id).classList.add('active')
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'))
+  btn.classList.add('active')
+  if (id === 'settings') renderSettings()
+}
+
+// ── FILTER ────────────────────────────────────────────────────────────────────
+document.getElementById('filter-chips').addEventListener('click', e => {
+  const chip = e.target.closest('.chip')
+  if (!chip) return
+  filterMode = chip.dataset.f
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'))
+  chip.classList.add('active')
+  renderList()
+})
+
+// ── SEARCH ────────────────────────────────────────────────────────────────────
+document.getElementById('search-inp').addEventListener('input', renderList)
+
+function getFiltered() {
+  const q = document.getElementById('search-inp').value.toLowerCase().trim()
+  return songs.filter(s => {
+    // security: always filter by user+app
+    if (s.id_user !== USER_ID || s.id_app !== APP_ID) return false
+    const mq = !q || s.title.toLowerCase().includes(q) || (s.artist||'').toLowerCase().includes(q) || (s.moods||[]).some(m => m.includes(q)) || (s.genre||'').toLowerCase().includes(q)
+    if (!mq) return false
+    if (filterMode === 'all') return true
+    if (filterMode === 'bai_tu') return s.status === 'bai_tu'
+    if (filterMode === 'hat_on') return s.status === 'hat_on'
+    if (filterMode === 'de_hat') return (s.difficulty||3) <= 2
+    return (s.moods||[]).includes(filterMode)
+  }).sort((a,b) => {
+    const o = { bai_tu:0, hat_on:1, chua_thuoc:2 }
+    return (o[a.status]??2) - (o[b.status]??2) || (new Date(b.updated_at) - new Date(a.updated_at))
+  })
+}
+
+// ── RENDER LIST ───────────────────────────────────────────────────────────────
+function renderList() {
+  const list = getFiltered()
+  const el = document.getElementById('song-list')
+  document.getElementById('list-count').textContent = list.length + ' bài'
+
+  if (!list.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">🎵</div><div>Chưa có bài nào</div><div style="font-size:12px;margin-top:6px;">Nhấn + để thêm</div></div>`
+    return
+  }
+  el.innerHTML = list.map(s => songCardHTML(s)).join('')
+  renderAISuggest(list)
+  renderRecentForgotten()
+}
+
+function songCardHTML(s) {
+  const moodTags = (s.moods||[]).map(m => `<span class="mood-tag ${MOOD_CLASS[m]||''}">${MOOD_LABEL[m]||m}</span>`).join('')
+  const stars = [1,2,3,4,5].map(i => `<span style="font-size:11px;color:${i<=(s.self_rating||0)?'var(--gold)':'var(--dim)'}">★</span>`).join('')
+  const keyTag = s.key_transpose && s.key_transpose!='0' ? `<span style="font-size:10px;background:var(--s3);color:var(--muted);padding:2px 7px;border-radius:6px;">key ${s.key_transpose}</span>` : ''
+  const lastSung = s.last_sung_at ? `<span style="font-size:10px;color:var(--dim);margin-left:auto;">${fmtDate(s.last_sung_at)}</span>` : ''
+  const sig = s.signature_lyrics?.length ? `<div style="margin-top:7px;font-size:11px;color:var(--muted);font-style:italic;border-left:2px solid var(--gold);padding-left:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">"${s.signature_lyrics[0]}"</div>` : ''
+  const note = s.personal_notes ? `<div style="margin-top:5px;font-size:11px;color:var(--dim);border-top:1px solid var(--border);padding-top:5px;">${s.personal_notes}</div>` : ''
+  const badgeCls = s.status==='bai_tu'?'badge-tu':s.status==='hat_on'?'badge-on':'badge-chua'
+  return `<div class="song-card ${s.status||'chua_thuoc'}" onclick="openDetail('${s.id}')">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+      <div style="flex:1;min-width:0;">
+        <div class="card-title">${esc(s.title)}</div>
+        <div class="card-sub">${esc(s.artist||'—')}${s.composer?' · '+esc(s.composer):''}</div>
+      </div>
+      <span class="badge ${badgeCls}">${STATUS_LABEL[s.status]||s.status}</span>
+    </div>
+    <div class="card-row">${moodTags}${keyTag}<span>${stars}</span>${lastSung}</div>
+    ${sig}${note}
+  </div>`
+}
+
+function fmtDate(ts) {
+  if (!ts) return ''
+  const d = new Date(ts), now = Date.now()
+  const diff = Math.floor((now - d) / 86400000)
+  if (diff === 0) return 'Hôm nay'
+  if (diff === 1) return 'Hôm qua'
+  if (diff < 7) return diff + 'd trước'
+  return d.toLocaleDateString('vi-VN', {day:'2-digit',month:'2-digit'})
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+}
+
+// ── AI SUGGEST ────────────────────────────────────────────────────────────────
+function renderAISuggest(list) {
+  const el = document.getElementById('ai-suggest-zone')
+  if (list.length < 5) { el.innerHTML=''; return }
+  const artists = [...new Set(list.filter(s=>s.status==='bai_tu').map(s=>s.artist).filter(Boolean))].slice(0,2)
+  if (!artists.length) { el.innerHTML=''; return }
+  el.innerHTML = `<div class="ai-suggest"><div class="ai-suggest-hdr">✨ Gợi ý</div><div style="font-size:13px;">Mày hay hát ${artists.join(', ')} — thử tìm thêm bài cùng nghệ sĩ hoặc cùng mood nhé!</div></div>`
+}
+
+// ── RECENT / FORGOTTEN ────────────────────────────────────────────────────────
+function renderRecentForgotten() {
+  const mySongs = songs.filter(s => s.id_user===USER_ID && s.id_app===APP_ID)
+
+  const recent = mySongs.filter(s=>s.last_sung_at).sort((a,b)=>new Date(b.last_sung_at)-new Date(a.last_sung_at)).slice(0,5)
+  const rz = document.getElementById('recent-zone')
+  if (recent.length) {
+    rz.innerHTML = `<div class="sec-hdr"><span>🕐 Vừa hát</span></div>
+      <div class="h-scroll">${recent.map(s=>`<div class="mini-card" onclick="openDetail('${s.id}')">${esc(s.title)}</div>`).join('')}</div>`
+  } else rz.innerHTML = ''
+
+  const threshold = Date.now() - 30*86400000
+  const forgotten = mySongs.filter(s=>s.sing_count>0&&s.last_sung_at&&new Date(s.last_sung_at)<threshold).sort((a,b)=>new Date(a.last_sung_at)-new Date(b.last_sung_at)).slice(0,3)
+  const fz = document.getElementById('forgotten-zone')
+  if (forgotten.length && filterMode==='all' && !document.getElementById('search-inp').value) {
+    fz.innerHTML = `<div style="margin:0 16px 12px;background:rgba(83,82,237,.08);border:1px solid rgba(83,82,237,.15);border-radius:var(--r);padding:10px 12px;">
+      <div style="font-size:11px;color:#7f7eff;font-weight:700;margin-bottom:6px;">🧊 Lâu rồi chưa hát</div>
+      ${forgotten.map(s=>`<div onclick="openDetail('${s.id}')" style="cursor:pointer;font-size:13px;padding:3px 0;">${esc(s.title)} <span style="color:var(--dim);font-size:11px;">— ${esc(s.artist||'—')}</span></div>`).join('')}
+    </div>`
+  } else fz.innerHTML = ''
+}
+
+// ── QUICK ADD ─────────────────────────────────────────────────────────────────
+document.getElementById('qa-inp').addEventListener('keydown', e => { if (e.key === 'Enter') quickSave() })
+document.getElementById('qa-save-btn').addEventListener('click', quickSave)
+document.getElementById('qa-ai-btn').addEventListener('click', quickAIAdd)
+
+function quickSave() {
+  const val = document.getElementById('qa-inp').value.trim()
+  if (!val) return
+  addSong({ title: val })
+  document.getElementById('qa-inp').value = ''
+  renderList()
+  toast('✅ Lưu nháp: ' + val)
+}
+
+async function quickAIAdd() {
+  const val = document.getElementById('qa-inp').value.trim()
+  if (!val) { toast('Nhập tên bài trước!', 'err'); return }
+  const btn = document.getElementById('qa-ai-btn')
+  btn.textContent = '⟳'
+  btn.disabled = true
+  try {
+    const data = await callGroqAutofill(val)
+    addSong(data)
+    document.getElementById('qa-inp').value = ''
+    renderList()
+    toast('✨ AI thêm: ' + (data.title||val))
+  } catch(e) {
+    toast('AI lỗi: ' + e.message, 'err')
+  } finally {
+    btn.textContent = 'AI ✨'
+    btn.disabled = false
+  }
+}
+
+function addSong(data) {
+  const now = new Date().toISOString()
+  const song = {
+    id: genId(),
+    id_user: USER_ID,
+    id_app: APP_ID,
+    title: data.title || '',
+    artist: data.artist || '',
+    artist_pref: data.artist_pref || '',
+    composer: data.composer || '',
+    genre: data.genre || '',
+    moods: data.moods || [],
+    difficulty: data.difficulty || 0,
+    voice_range: data.voice_range || '',
+    key_transpose: data.key_transpose || '0',
+    personal_notes: data.personal_notes || '',
+    self_rating: data.self_rating || 0,
+    status: data.status || 'chua_thuoc',
+    signature_lyrics: data.signature_lyrics || [],
+    full_lyrics: data.full_lyrics || '',
+    youtube_url: data.youtube_url || '',
+    last_sung_at: null,
+    sing_count: 0,
+    created_at: now,
+    updated_at: now,
+  }
+  songs.push(song)
+  saveSongs()
+  return song
+}
+
+function genId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2,7)
+}
+
+// ── DETAIL ────────────────────────────────────────────────────────────────────
+function openDetail(id) {
+  const s = songs.find(x => x.id === id)
+  if (!s) return
+  const icon = GENRE_ICON[s.genre] || '🎵'
+  const moodTags = (s.moods||[]).map(m=>`<span class="mood-tag ${MOOD_CLASS[m]||''}" style="font-size:12px;">${MOOD_LABEL[m]||m}</span>`).join(' ')
+  const diffStars = [1,2,3,4,5].map(i=>`<span style="font-size:15px;color:${i<=(s.difficulty||0)?'var(--red)':'var(--dim)'}">★</span>`).join('')
+  const ratStars  = [1,2,3,4,5].map(i=>`<span style="font-size:15px;color:${i<=(s.self_rating||0)?'var(--gold)':'var(--dim)'}">★</span>`).join('')
+  const sigHTML = s.signature_lyrics?.length ? s.signature_lyrics.map(l=>`<div>"${esc(l)}"</div>`).join('') : '—'
+  const lyricsHTML = s.full_lyrics
+    ? `<div class="lyrics-box">${esc(s.full_lyrics)}</div>`
+    : `<div style="font-size:13px;color:var(--dim);">Chưa có lyrics</div>`
+
+  document.getElementById('modal-detail-body').innerHTML = `
+    <div class="modal-hdr"><div></div><button class="close-btn" onclick="closeDetail()">✕</button></div>
+    <div class="detail-head">
+      <div class="detail-icon">${icon}</div>
+      <div>
+        <div class="detail-title">${esc(s.title)}</div>
+        <div class="detail-sub">${esc(s.artist||'—')}${s.artist_pref&&s.artist_pref!==s.artist?' (theo: '+esc(s.artist_pref)+')':''}</div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px;">${moodTags}</div>
+      </div>
+    </div>
+
+    <div class="detail-btn-row">
+      ${s.youtube_url ? `<a href="${esc(s.youtube_url)}" target="_blank" class="btn btn-danger" style="justify-content:center;text-decoration:none;">▶ YouTube</a>` : `<button class="btn btn-ghost" disabled style="opacity:.4;justify-content:center;">▶ Chưa có link</button>`}
+      <button class="btn btn-ghost" onclick="copyTitle('${esc(s.title)}')" style="justify-content:center;">📋 Copy tên</button>
+      <button class="btn btn-green" onclick="markSung('${s.id}')" style="justify-content:center;">🎤 Vừa hát!</button>
+      <button class="btn btn-ghost" onclick="editSong('${s.id}')" style="justify-content:center;">✏️ Sửa</button>
+    </div>
+
+    <div class="detail-grid">
+      <div class="detail-cell"><div class="detail-cell-label">Tình trạng</div><div>${STATUS_LABEL[s.status]||s.status}</div></div>
+      <div class="detail-cell"><div class="detail-cell-label">Key hay hát</div><div style="color:var(--purple);">Key ${s.key_transpose||'0'}</div></div>
+      <div class="detail-cell"><div class="detail-cell-label">Tự chấm</div><div>${ratStars}</div></div>
+      <div class="detail-cell"><div class="detail-cell-label">Độ khó</div><div>${diffStars}</div></div>
+    </div>
+
+    ${s.personal_notes ? `<div style="margin-bottom:12px;"><div style="font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px;">Ghi chú</div><div style="font-size:13px;color:var(--muted);">${esc(s.personal_notes)}</div></div>` : ''}
+
+    <div style="margin-bottom:12px;">
+      <div style="font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">Câu Signature</div>
+      <div class="sig-block">${sigHTML}</div>
+    </div>
+
+    <div style="margin-bottom:12px;">
+      <div style="font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">Lyrics</div>
+      ${lyricsHTML}
+    </div>
+
+    <div style="font-size:13px;color:var(--muted);margin-bottom:14px;">
+      Đã hát: <strong>${s.sing_count||0}</strong> lần${s.last_sung_at?' · Lần cuối: '+fmtDate(s.last_sung_at):''}
+    </div>
+
+    <button class="btn btn-danger" onclick="deleteSong('${s.id}')" style="width:100%;justify-content:center;">🗑 Xóa bài này</button>
+  `
+  document.getElementById('modal-detail').classList.remove('hidden')
+}
+
+function closeDetail() { document.getElementById('modal-detail').classList.add('hidden') }
+
+function copyTitle(t) {
+  navigator.clipboard.writeText(t).catch(()=>{})
+  toast('📋 Đã copy: ' + t)
+}
+
+function markSung(id) {
+  const s = songs.find(x=>x.id===id)
+  if (!s) return
+  s.last_sung_at = new Date().toISOString()
+  s.sing_count = (s.sing_count||0) + 1
+  s.updated_at = new Date().toISOString()
+  saveSongs()
+  renderList()
+  openDetail(id)
+  toast('🎤 Ghi lại! Lần ' + s.sing_count)
+}
+
+function deleteSong(id) {
+  if (!confirm('Xóa bài này?')) return
+  songs = songs.filter(x => x.id !== id)
+  saveSongs()
+  closeDetail()
+  renderList()
+  toast('🗑 Đã xóa')
+}
+
+// ── ADD / EDIT FORM ───────────────────────────────────────────────────────────
+document.getElementById('fab-add').addEventListener('click', () => openSongModal(null))
+
+function openSongModal(editId) {
+  const song = editId ? songs.find(s=>s.id===editId) : null
+  document.getElementById('f-id').value = editId || ''
+  document.getElementById('modal-song-title').textContent = song ? 'Sửa bài hát' : 'Thêm bài mới'
+
+  // Reset
+  document.getElementById('f-title').value = song?.title || ''
+  document.getElementById('f-artist').value = song?.artist || ''
+  document.getElementById('f-artist-pref').value = song?.artist_pref || ''
+  document.getElementById('f-composer').value = song?.composer || ''
+  document.getElementById('f-genre').value = song?.genre || ''
+  document.getElementById('f-voice').value = song?.voice_range || ''
+  document.getElementById('f-notes').value = song?.personal_notes || ''
+  document.getElementById('f-sig').value = (song?.signature_lyrics||[]).join('\n')
+  document.getElementById('f-yt').value = song?.youtube_url || ''
+  document.getElementById('f-lyrics').value = song?.full_lyrics || ''
+
+  formMoods = [...(song?.moods||[])]
+  formDiff = song?.difficulty || 0
+  formRating = song?.self_rating || 0
+  formStatus = song?.status || 'chua_thuoc'
+  formKey = String(song?.key_transpose ?? '0')
+
+  syncFormUI()
+  document.getElementById('modal-song').classList.remove('hidden')
+}
+
+function closeSongModal() { document.getElementById('modal-song').classList.add('hidden') }
+
+function syncFormUI() {
+  // Moods
+  document.querySelectorAll('.mood-opt').forEach(el => {
+    el.classList.toggle('sel', formMoods.includes(el.dataset.m))
+  })
+  // Diff
+  document.querySelectorAll('#diff-stars .star').forEach(el => {
+    const v = parseInt(el.dataset.v)
+    el.className = 'star' + (v <= formDiff ? ' on-red' : '')
+  })
+  // Rating
+  document.querySelectorAll('#rating-stars .star').forEach(el => {
+    const v = parseInt(el.dataset.v)
+    el.className = 'star' + (v <= formRating ? ' on' : '')
+  })
+  // Status
+  document.querySelectorAll('.status-opt').forEach(el => {
+    el.className = 'status-opt' + (el.dataset.s === formStatus ? (' sel-' + {chua_thuoc:'chua',hat_on:'on',bai_tu:'tu'}[formStatus]) : '')
+  })
+  // Key
+  document.querySelectorAll('.key-opt').forEach(el => {
+    el.classList.toggle('sel', el.dataset.k === formKey)
+  })
+}
+
+function toggleMood(el) {
+  const m = el.dataset.m
+  if (formMoods.includes(m)) formMoods = formMoods.filter(x=>x!==m)
+  else formMoods.push(m)
+  el.classList.toggle('sel', formMoods.includes(m))
+}
+
+function setDiff(v) {
+  formDiff = v
+  document.querySelectorAll('#diff-stars .star').forEach(el => {
+    el.className = 'star' + (parseInt(el.dataset.v) <= v ? ' on-red' : '')
+  })
+}
+
+function setRating(v) {
+  formRating = v
+  document.querySelectorAll('#rating-stars .star').forEach(el => {
+    el.className = 'star' + (parseInt(el.dataset.v) <= v ? ' on' : '')
+  })
+}
+
+function setStatus(el) {
+  formStatus = el.dataset.s
+  document.querySelectorAll('.status-opt').forEach(e => {
+    e.className = 'status-opt' + (e.dataset.s === formStatus ? (' sel-' + {chua_thuoc:'chua',hat_on:'on',bai_tu:'tu'}[formStatus]) : '')
+  })
+}
+
+function setKey(el) {
+  formKey = el.dataset.k
+  document.querySelectorAll('.key-opt').forEach(e => e.classList.toggle('sel', e.dataset.k === formKey))
+}
+
+function saveSongForm() {
+  const title = document.getElementById('f-title').value.trim()
+  if (!title) { toast('Điền tên bài đã!', 'err'); return }
+  const editId = document.getElementById('f-id').value
+  const now = new Date().toISOString()
+  const sigs = document.getElementById('f-sig').value.split('\n').map(s=>s.trim()).filter(Boolean)
+
+  if (editId) {
+    const idx = songs.findIndex(s => s.id === editId)
+    if (idx >= 0) {
+      songs[idx] = {
+        ...songs[idx],
+        title,
+        artist: document.getElementById('f-artist').value.trim(),
+        artist_pref: document.getElementById('f-artist-pref').value.trim(),
+        composer: document.getElementById('f-composer').value.trim(),
+        genre: document.getElementById('f-genre').value,
+        moods: [...formMoods],
+        difficulty: formDiff,
+        voice_range: document.getElementById('f-voice').value,
+        key_transpose: formKey,
+        personal_notes: document.getElementById('f-notes').value.trim(),
+        self_rating: formRating,
+        status: formStatus,
+        signature_lyrics: sigs,
+        full_lyrics: document.getElementById('f-lyrics').value.trim(),
+        youtube_url: document.getElementById('f-yt').value.trim(),
+        updated_at: now,
+      }
+      saveSongs()
+      toast('✅ Đã cập nhật!')
+    }
+  } else {
+    addSong({
+      title,
+      artist: document.getElementById('f-artist').value.trim(),
+      artist_pref: document.getElementById('f-artist-pref').value.trim(),
+      composer: document.getElementById('f-composer').value.trim(),
+      genre: document.getElementById('f-genre').value,
+      moods: [...formMoods],
+      difficulty: formDiff,
+      voice_range: document.getElementById('f-voice').value,
+      key_transpose: formKey,
+      personal_notes: document.getElementById('f-notes').value.trim(),
+      self_rating: formRating,
+      status: formStatus,
+      signature_lyrics: sigs,
+      full_lyrics: document.getElementById('f-lyrics').value.trim(),
+      youtube_url: document.getElementById('f-yt').value.trim(),
+    })
+    toast('🎵 Thêm bài thành công!')
+  }
+  closeSongModal()
+  renderList()
+}
+
+function editSong(id) {
+  closeDetail()
+  openSongModal(id)
+}
+
+// ── AI AUTOFILL (GROQ) ────────────────────────────────────────────────────────
+async function callGroqAutofill(title) {
+  const key = settings.groq_key
+  if (!key) throw new Error('Chưa có Groq API key. Vào Cài đặt để thêm.')
+
+  const prompt = `Bài hát: "${title}"
+Trả về JSON thuần (không markdown, không giải thích gì thêm):
+{"title":"","artist":"","genre":"","moods":[]}
+Quy tắc:
+- title: tên bài đúng chính tả
+- artist: ca sĩ nổi tiếng nhất hát bài này
+- genre: một trong [Bolero, Pop Việt, Nhạc Vàng, Nhạc Trẻ, Ballad, R&B, Rock, Dân Ca]
+- moods: mảng từ [buon, chill, to_tinh, quay, nhau], tối đa 2 phần tử
+- Nếu không biết chắc → để trống, ĐỪNG bịa
+- KHÔNG generate lyrics`
+
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.1,
+      max_tokens: 200,
+    })
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(()=>({}))
+    throw new Error(err.error?.message || 'Groq API lỗi ' + res.status)
+  }
+  const data = await res.json()
+  const raw = data.choices?.[0]?.message?.content || ''
+  try {
+    const clean = raw.replace(/```json|```/g,'').trim()
+    const json = JSON.parse(clean)
+    return {
+      title: json.title || title,
+      artist: json.artist || '',
+      genre: json.genre || '',
+      moods: Array.isArray(json.moods) ? json.moods.slice(0,3) : [],
+    }
+  } catch {
+    throw new Error('AI trả về dữ liệu không hợp lệ')
+  }
+}
+
+async function doAIFill() {
+  const title = document.getElementById('f-title').value.trim()
+  if (!title) { toast('Nhập tên bài trước!', 'err'); return }
+  const btn = document.getElementById('ai-fill-btn')
+  const status = document.getElementById('ai-fill-status')
+  btn.disabled = true
+  btn.textContent = '⟳ AI đang tra cứu...'
+  status.style.display = 'block'
+  status.textContent = 'Đang hỏi Groq về "' + title + '"...'
+  try {
+    const data = await callGroqAutofill(title)
+    if (data.title) document.getElementById('f-title').value = data.title
+    if (data.artist) document.getElementById('f-artist').value = data.artist
+    if (data.genre) document.getElementById('f-genre').value = data.genre
+    if (data.moods?.length) { formMoods = data.moods; syncFormUI() }
+    status.textContent = '✨ AI điền xong!'
+    toast('✨ AI đã điền xong!')
+  } catch(e) {
+    status.textContent = '❌ ' + e.message
+    toast(e.message, 'err')
+  } finally {
+    btn.disabled = false
+    btn.textContent = '✨ AI Autofill — nhập tên, tao điền hết'
+    setTimeout(() => { status.style.display = 'none' }, 3000)
+  }
+}
+
+// ── KARAOKE MODE ──────────────────────────────────────────────────────────────
+document.getElementById('btn-km').addEventListener('click', openKM)
+
+function openKM() {
+  document.getElementById('km-overlay').classList.remove('hidden')
+  document.getElementById('km-search-inp').focus()
+  renderKMList()
+}
+function closeKM() { document.getElementById('km-overlay').classList.add('hidden') }
+
+document.getElementById('km-search-inp').addEventListener('input', renderKMList)
+
+document.getElementById('km-filters').addEventListener('click', e => {
+  const btn = e.target.closest('.km-chip')
+  if (!btn) return
+  kmFilter = btn.dataset.kf
+  document.querySelectorAll('.km-chip').forEach(b => b.classList.remove('active'))
+  btn.classList.add('active')
+  renderKMList()
+})
+
+function renderKMList() {
+  const q = document.getElementById('km-search-inp').value.toLowerCase().trim()
+  const list = songs.filter(s => {
+    if (s.id_user!==USER_ID || s.id_app!==APP_ID) return false
+    const mq = !q || s.title.toLowerCase().includes(q) || (s.artist||'').toLowerCase().includes(q)
+    if (!mq) return false
+    if (kmFilter==='all') return true
+    if (kmFilter==='bai_tu') return s.status==='bai_tu'
+    if (kmFilter==='de_hat') return (s.difficulty||3)<=2
+    return (s.moods||[]).includes(kmFilter)
+  }).sort((a,b)=>{
+    const o={bai_tu:0,hat_on:1,chua_thuoc:2}
+    return (o[a.status]??2)-(o[b.status]??2)
+  })
+  document.getElementById('km-count').textContent = list.length + ' bài'
+  document.getElementById('km-list').innerHTML = list.length ? list.map(s => `
+    <div class="km-item">
+      <div class="km-info">
+        <div class="km-song-title">${esc(s.title)}</div>
+        <div class="km-song-sub">${esc(s.artist||'—')}${s.key_transpose&&s.key_transpose!='0'?' · Key '+s.key_transpose:''}</div>
+      </div>
+      ${s.status==='bai_tu'?'<span class="km-tu-badge">TỦ</span>':''}
+      <div class="km-actions">
+        <button class="km-btn km-copy" onclick="kmCopy('${esc(s.title)}',this)">📋</button>
+        ${s.youtube_url?`<a href="${esc(s.youtube_url)}" target="_blank" class="km-btn km-yt">▶</a>`:''}
+      </div>
+    </div>`).join('') : '<div style="text-align:center;padding:40px;color:rgba(255,255,255,.3);">Không tìm thấy</div>'
+}
+
+function kmCopy(title, btn) {
+  navigator.clipboard.writeText(title).catch(()=>{})
+  const orig = btn.textContent
+  btn.textContent = '✓'
+  btn.style.background = 'rgba(46,213,115,.3)'
+  setTimeout(() => { btn.textContent = orig; btn.style.background = '' }, 1500)
+}
+
+function randomTu() {
+  const pool = songs.filter(s=>s.id_user===USER_ID&&s.id_app===APP_ID&&s.status==='bai_tu')
+  if (!pool.length) { toast('Chưa có bài tủ!','err'); return }
+  const s = pool[Math.floor(Math.random()*pool.length)]
+  kmCopy(s.title, { textContent:'📋', style:{} })
+  toast('🎲 ' + s.title)
+}
+
+// ── SETTINGS ──────────────────────────────────────────────────────────────────
+function renderSettings() {
+  const mySongs = songs.filter(s=>s.id_user===USER_ID&&s.id_app===APP_ID)
+  document.getElementById('stats-grid').innerHTML = [
+    { label:'Tổng bài', val: mySongs.length },
+    { label:'Bài tủ',   val: mySongs.filter(s=>s.status==='bai_tu').length },
+    { label:'Đã hát',   val: mySongs.filter(s=>s.sing_count>0).length },
+  ].map(s=>`<div class="stat-cell"><div class="stat-num">${s.val}</div><div class="stat-label">${s.label}</div></div>`).join('')
+
+  document.getElementById('groq-key-inp').value = settings.groq_key ? '••••••••' : ''
+  document.getElementById('sb-url-inp').value = settings.sb_url || ''
+  document.getElementById('sb-key-inp').value = settings.sb_key ? '••••••••' : ''
+}
+
+function saveGroqKey() {
+  const val = document.getElementById('groq-key-inp').value.trim()
+  if (!val || val === '••••••••') { toast('Nhập key trước!','err'); return }
+  settings.groq_key = val
+  saveSettingsStore()
+  document.getElementById('groq-key-inp').value = '••••••••'
+  toast('✅ Đã lưu Groq key!')
+}
+
+function saveSupabaseConfig() {
+  const url = document.getElementById('sb-url-inp').value.trim()
+  const key = document.getElementById('sb-key-inp').value.trim()
+  if (url) settings.sb_url = url
+  if (key && key !== '••••••••') settings.sb_key = key
+  saveSettingsStore()
+  toast('✅ Đã lưu Supabase config!')
+}
+
+// ── SUPABASE SYNC ─────────────────────────────────────────────────────────────
+document.getElementById('btn-sync').addEventListener('click', () => doSync('both'))
+
+async function doSync(direction = 'both') {
+  const url = settings.sb_url, key = settings.sb_key
+  if (!url || !key) { toast('Chưa có Supabase config!','err'); return }
+  const log = document.getElementById('sync-log')
+  const setLog = m => { if(log) log.textContent = m }
+
+  try {
+    document.getElementById('btn-sync').textContent = '⟳'
+    setLog('Đang kết nối...')
+
+    // Init Supabase inline (UMD already loaded if available)
+    if (!window.supabase) {
+      // Load Supabase CDN dynamically
+      await new Promise((res,rej) => {
+        const s = document.createElement('script')
+        s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js'
+        s.onload = res; s.onerror = rej
+        document.head.appendChild(s)
+      })
+    }
+
+    const client = window.supabase.createClient(url, key)
+
+    if (direction === 'push' || direction === 'both') {
+      setLog('Đang push...')
+      const mySongs = songs.filter(s=>s.id_user===USER_ID&&s.id_app===APP_ID)
+      const { error } = await client.from('songs').upsert(mySongs, { onConflict: 'id' })
+      if (error) throw new Error('Push lỗi: ' + error.message)
+      setLog(`Đã push ${mySongs.length} bài`)
+    }
+
+    if (direction === 'pull' || direction === 'both') {
+      setLog('Đang pull...')
+      const { data, error } = await client.from('songs')
+        .select('*')
+        .eq('id_user', USER_ID)
+        .eq('id_app', APP_ID)
+      if (error) throw new Error('Pull lỗi: ' + error.message)
+      if (data?.length) {
+        // Merge: latest updated_at wins
+        for (const srv of data) {
+          const idx = songs.findIndex(s => s.id === srv.id)
+          if (idx < 0) songs.push(srv)
+          else if (new Date(srv.updated_at) > new Date(songs[idx].updated_at)) songs[idx] = srv
+        }
+        saveSongs()
+        renderList()
+      }
+      setLog(`Sync xong! ${data?.length||0} bài từ server.`)
+    }
+
+    toast('✅ Sync xong!')
+    settings.last_synced = new Date().toISOString()
+    saveSettingsStore()
+  } catch(e) {
+    setLog('❌ ' + e.message)
+    toast(e.message, 'err')
+  } finally {
+    document.getElementById('btn-sync').textContent = '⟳'
+  }
+}
+
+// ── EXPORT / IMPORT ───────────────────────────────────────────────────────────
+function doExport() {
+  const mySongs = songs.filter(s=>s.id_user===USER_ID&&s.id_app===APP_ID)
+  const data = { version: 1, exported_at: new Date().toISOString(), id_user: USER_ID, id_app: APP_ID, songs: mySongs }
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = `kho-nhac-${new Date().toISOString().slice(0,10)}.json`
+  a.click()
+  toast(`📦 Exported ${mySongs.length} bài!`)
+}
+
+function triggerImport() { document.getElementById('import-file').click() }
+
+function doImport(e) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result)
+      if (!data.songs || !Array.isArray(data.songs)) throw new Error('File không hợp lệ')
+      if (data.id_user && data.id_user !== USER_ID) {
+        if (!confirm(`File này của user "${data.id_user}", không phải "${USER_ID}". Vẫn import?`)) return
+      }
+      if (data.id_app && data.id_app !== APP_ID) {
+        if (!confirm(`File này thuộc app "${data.id_app}", không phải "${APP_ID}". Vẫn import?`)) return
+      }
+      if (!confirm(`Import ${data.songs.length} bài? Bài trùng ID sẽ bị ghi đè.`)) return
+      let imported = 0
+      for (const s of data.songs) {
+        // Stamp correct user+app
+        const song = { ...s, id_user: USER_ID, id_app: APP_ID }
+        const idx = songs.findIndex(x => x.id === song.id)
+        if (idx >= 0) songs[idx] = song
+        else songs.push(song)
+        imported++
+      }
+      saveSongs()
+      renderList()
+      toast(`✅ Import ${imported} bài!`)
+    } catch(err) {
+      toast('❌ ' + err.message, 'err')
+    }
+    e.target.value = ''
+  }
+  reader.readAsText(file)
+}
+
+// ── CLOSE MODALS ON BG CLICK ─────────────────────────────────────────────────
+document.getElementById('modal-song').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeSongModal()
+})
+document.getElementById('modal-detail').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeDetail()
+})
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+function init() {
+  loadSongs()
+  loadSettings()
+
+  // Seed sample data if empty
+  if (!songs.some(s=>s.id_user===USER_ID&&s.id_app===APP_ID)) {
+    const now = new Date().toISOString()
+    const seed = [
+      { title:'Người Ta Đâu Có Thương Mình', artist:'Đàm Vĩnh Hưng', genre:'Pop Việt', moods:['buon','to_tinh'], difficulty:3, self_rating:5, status:'bai_tu', key_transpose:'-2', personal_notes:'Đoạn bridge dễ hụt hơi', signature_lyrics:['Người ta đâu có thương mình như mình thương người ta...'], last_sung_at: new Date(Date.now()-2*86400000).toISOString(), sing_count:8 },
+      { title:'Thằng Hầu', artist:'Hoài Linh', genre:'Nhạc Vàng', moods:['nhau','quay'], difficulty:2, self_rating:4, status:'bai_tu', key_transpose:'+1', sing_count:12, last_sung_at: new Date(Date.now()-86400000).toISOString() },
+      { title:'Trái Tim Không Ngủ Yên', artist:'Bằng Kiều', genre:'Nhạc Trẻ', moods:['buon','chill'], difficulty:4, self_rating:3, status:'hat_on', key_transpose:'-1', personal_notes:'Lên cao khó, cần khởi giọng kỹ', sing_count:3, last_sung_at: new Date(Date.now()-60*86400000).toISOString() },
+      { title:'Yêu Thương Mong Manh', artist:'Ngọc Sơn', genre:'Bolero', moods:['buon'], difficulty:3, self_rating:3, status:'chua_thuoc', key_transpose:'0', sing_count:0 },
+    ].map((d,i) => ({ id: genId(), id_user:USER_ID, id_app:APP_ID, artist_pref:'', composer:'', voice_range:'', youtube_url:'', full_lyrics:'', signature_lyrics:[], personal_notes:'', moods:[], ...d, created_at:now, updated_at:now, last_sung_at:d.last_sung_at||null }))
+    songs.push(...seed)
+    saveSongs()
+  }
+
+  // Theme
+  const theme = settings.theme || 'dark'
+  document.documentElement.setAttribute('data-theme', theme)
+  document.getElementById('btn-theme').textContent = theme === 'dark' ? '☀️' : '🌙'
+  document.getElementById('theme-dark-btn').style.borderColor = theme === 'dark' ? 'var(--gold)' : ''
+  document.getElementById('theme-light-btn').style.borderColor = theme === 'light' ? 'var(--gold)' : ''
+
+  document.getElementById('btn-theme').addEventListener('click', () => {
+    setTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark')
+  })
+
+  renderList()
+}
+
+init()
+</script>
+</body>
+</html>
