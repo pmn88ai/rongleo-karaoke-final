@@ -595,7 +595,20 @@ let settings = {}
 
 // ── STORAGE ───────────────────────────────────────────────────────────────────
 function loadSongs() {
-  try { songs = JSON.parse(localStorage.getItem(STORE_KEY) || '[]') } catch { songs = [] }
+  try {
+    songs = JSON.parse(localStorage.getItem(STORE_KEY) || '[]')
+    // Migration: rename legacy id_user → user_id, id_app → app_id
+    let migrated = false
+    songs = songs.map(s => {
+      if (s.id_user !== undefined || s.id_app !== undefined) {
+        migrated = true
+        const { id_user, id_app, ...rest } = s
+        return { ...rest, user_id: s.user_id || id_user, app_id: s.app_id || id_app }
+      }
+      return s
+    })
+    if (migrated) saveSongs()
+  } catch { songs = [] }
 }
 function saveSongs() { localStorage.setItem(STORE_KEY, JSON.stringify(songs)) }
 function loadSettings() {
@@ -649,7 +662,7 @@ function getFiltered() {
   const q = document.getElementById('search-inp').value.toLowerCase().trim()
   return songs.filter(s => {
     // security: always filter by user+app
-    if (s.id_user !== USER_ID || s.id_app !== APP_ID) return false
+    if (s.user_id !== USER_ID || s.app_id !== APP_ID) return false
     const mq = !q || s.title.toLowerCase().includes(q) || (s.artist||'').toLowerCase().includes(q) || (s.moods||[]).some(m => m.includes(q)) || (s.genre||'').toLowerCase().includes(q)
     if (!mq) return false
     if (filterMode === 'all') return true
@@ -724,7 +737,7 @@ function renderAISuggest(list) {
 
 // ── RECENT / FORGOTTEN ────────────────────────────────────────────────────────
 function renderRecentForgotten() {
-  const mySongs = songs.filter(s => s.id_user===USER_ID && s.id_app===APP_ID)
+  const mySongs = songs.filter(s => s.user_id===USER_ID && s.app_id===APP_ID)
 
   const recent = mySongs.filter(s=>s.last_sung_at).sort((a,b)=>new Date(b.last_sung_at)-new Date(a.last_sung_at)).slice(0,5)
   const rz = document.getElementById('recent-zone')
@@ -782,8 +795,8 @@ function addSong(data) {
   const now = new Date().toISOString()
   const song = {
     id: genId(),
-    id_user: USER_ID,
-    id_app: APP_ID,
+    user_id: USER_ID,
+    app_id: APP_ID,
     title: data.title || '',
     artist: data.artist || '',
     artist_pref: data.artist_pref || '',
@@ -1148,7 +1161,7 @@ document.getElementById('km-filters').addEventListener('click', e => {
 function renderKMList() {
   const q = document.getElementById('km-search-inp').value.toLowerCase().trim()
   const list = songs.filter(s => {
-    if (s.id_user!==USER_ID || s.id_app!==APP_ID) return false
+    if (s.user_id!==USER_ID || s.app_id!==APP_ID) return false
     const mq = !q || s.title.toLowerCase().includes(q) || (s.artist||'').toLowerCase().includes(q)
     if (!mq) return false
     if (kmFilter==='all') return true
@@ -1183,7 +1196,7 @@ function kmCopy(title, btn) {
 }
 
 function randomTu() {
-  const pool = songs.filter(s=>s.id_user===USER_ID&&s.id_app===APP_ID&&s.status==='bai_tu')
+  const pool = songs.filter(s=>s.user_id===USER_ID&&s.app_id===APP_ID&&s.status==='bai_tu')
   if (!pool.length) { toast('Chưa có bài tủ!','err'); return }
   const s = pool[Math.floor(Math.random()*pool.length)]
   kmCopy(s.title, { textContent:'📋', style:{} })
@@ -1192,7 +1205,7 @@ function randomTu() {
 
 // ── SETTINGS ──────────────────────────────────────────────────────────────────
 function renderSettings() {
-  const mySongs = songs.filter(s=>s.id_user===USER_ID&&s.id_app===APP_ID)
+  const mySongs = songs.filter(s=>s.user_id===USER_ID&&s.app_id===APP_ID)
   document.getElementById('stats-grid').innerHTML = [
     { label:'Tổng bài', val: mySongs.length },
     { label:'Bài tủ',   val: mySongs.filter(s=>s.status==='bai_tu').length },
@@ -1250,7 +1263,9 @@ async function doSync(direction = 'both') {
 
     if (direction === 'push' || direction === 'both') {
       setLog('Đang push...')
-      const mySongs = songs.filter(s=>s.id_user===USER_ID&&s.id_app===APP_ID)
+      const mySongs = songs
+        .filter(s => s.user_id===USER_ID && s.app_id===APP_ID)
+        .map(s => ({ ...s, user_id: USER_ID, app_id: APP_ID })) // guarantee correct fields
       const { error } = await client.from('songs').upsert(mySongs, { onConflict: 'id' })
       if (error) throw new Error('Push lỗi: ' + error.message)
       setLog(`Đã push ${mySongs.length} bài`)
@@ -1260,8 +1275,8 @@ async function doSync(direction = 'both') {
       setLog('Đang pull...')
       const { data, error } = await client.from('songs')
         .select('*')
-        .eq('id_user', USER_ID)
-        .eq('id_app', APP_ID)
+        .eq('user_id', USER_ID)
+        .eq('app_id', APP_ID)
       if (error) throw new Error('Pull lỗi: ' + error.message)
       if (data?.length) {
         // Merge: latest updated_at wins
@@ -1289,8 +1304,8 @@ async function doSync(direction = 'both') {
 
 // ── EXPORT / IMPORT ───────────────────────────────────────────────────────────
 function doExport() {
-  const mySongs = songs.filter(s=>s.id_user===USER_ID&&s.id_app===APP_ID)
-  const data = { version: 1, exported_at: new Date().toISOString(), id_user: USER_ID, id_app: APP_ID, songs: mySongs }
+  const mySongs = songs.filter(s=>s.user_id===USER_ID&&s.app_id===APP_ID)
+  const data = { version: 1, exported_at: new Date().toISOString(), user_id: USER_ID, app_id: APP_ID, songs: mySongs }
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
   const a = document.createElement('a')
   a.href = URL.createObjectURL(blob)
@@ -1309,17 +1324,19 @@ function doImport(e) {
     try {
       const data = JSON.parse(ev.target.result)
       if (!data.songs || !Array.isArray(data.songs)) throw new Error('File không hợp lệ')
-      if (data.id_user && data.id_user !== USER_ID) {
-        if (!confirm(`File này của user "${data.id_user}", không phải "${USER_ID}". Vẫn import?`)) return
+      if (data.user_id && data.user_id !== USER_ID) {
+        if (!confirm(`File này của user "${data.user_id}", không phải "${USER_ID}". Vẫn import?`)) return
       }
-      if (data.id_app && data.id_app !== APP_ID) {
-        if (!confirm(`File này thuộc app "${data.id_app}", không phải "${APP_ID}". Vẫn import?`)) return
+      if (data.app_id && data.app_id !== APP_ID) {
+        if (!confirm(`File này thuộc app "${data.app_id}", không phải "${APP_ID}". Vẫn import?`)) return
       }
       if (!confirm(`Import ${data.songs.length} bài? Bài trùng ID sẽ bị ghi đè.`)) return
       let imported = 0
       for (const s of data.songs) {
-        // Stamp correct user+app
-        const song = { ...s, id_user: USER_ID, id_app: APP_ID }
+        // Migrate legacy naming + stamp correct user+app (after spread to override any old values)
+        const { id_user, id_app, ...rest } = s
+        const song = { ...rest, user_id: USER_ID, app_id: APP_ID }
+        if (!song.id) song.id = genId()
         const idx = songs.findIndex(x => x.id === song.id)
         if (idx >= 0) songs[idx] = song
         else songs.push(song)
@@ -1350,14 +1367,14 @@ function init() {
   loadSettings()
 
   // Seed sample data if empty
-  if (!songs.some(s=>s.id_user===USER_ID&&s.id_app===APP_ID)) {
+  if (!songs.some(s=>s.user_id===USER_ID&&s.app_id===APP_ID)) {
     const now = new Date().toISOString()
     const seed = [
       { title:'Người Ta Đâu Có Thương Mình', artist:'Đàm Vĩnh Hưng', genre:'Pop Việt', moods:['buon','to_tinh'], difficulty:3, self_rating:5, status:'bai_tu', key_transpose:'-2', personal_notes:'Đoạn bridge dễ hụt hơi', signature_lyrics:['Người ta đâu có thương mình như mình thương người ta...'], last_sung_at: new Date(Date.now()-2*86400000).toISOString(), sing_count:8 },
       { title:'Thằng Hầu', artist:'Hoài Linh', genre:'Nhạc Vàng', moods:['nhau','quay'], difficulty:2, self_rating:4, status:'bai_tu', key_transpose:'+1', sing_count:12, last_sung_at: new Date(Date.now()-86400000).toISOString() },
       { title:'Trái Tim Không Ngủ Yên', artist:'Bằng Kiều', genre:'Nhạc Trẻ', moods:['buon','chill'], difficulty:4, self_rating:3, status:'hat_on', key_transpose:'-1', personal_notes:'Lên cao khó, cần khởi giọng kỹ', sing_count:3, last_sung_at: new Date(Date.now()-60*86400000).toISOString() },
       { title:'Yêu Thương Mong Manh', artist:'Ngọc Sơn', genre:'Bolero', moods:['buon'], difficulty:3, self_rating:3, status:'chua_thuoc', key_transpose:'0', sing_count:0 },
-    ].map((d,i) => ({ id: genId(), id_user:USER_ID, id_app:APP_ID, artist_pref:'', composer:'', voice_range:'', youtube_url:'', full_lyrics:'', signature_lyrics:[], personal_notes:'', moods:[], ...d, created_at:now, updated_at:now, last_sung_at:d.last_sung_at||null }))
+    ].map((d,i) => ({ id: genId(), user_id:USER_ID, app_id:APP_ID, artist_pref:'', composer:'', voice_range:'', youtube_url:'', full_lyrics:'', signature_lyrics:[], personal_notes:'', moods:[], ...d, created_at:now, updated_at:now, last_sung_at:d.last_sung_at||null }))
     songs.push(...seed)
     saveSongs()
   }
