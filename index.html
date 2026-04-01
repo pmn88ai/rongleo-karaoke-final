@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>🎤 Kho Nhạc</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
 
@@ -578,7 +579,6 @@ textarea { resize: none; line-height: 1.6; }
 // ── CONSTANTS ────────────────────────────────────────────────────────────────
 const USER_ID = 'RongLeo'
 const APP_ID  = 'karaoke'
-const STORE_KEY = `${USER_ID}_${APP_ID}_songs_v1`
 const SETTINGS_KEY = `${USER_ID}_${APP_ID}_settings_v1`
 
 const MOOD_LABEL = { buon:'😢 Buồn', chill:'🌙 Chill', to_tinh:'💕 Tỏ tình', quay:'🔥 Quẩy', nhau:'🍺 Nhậu' }
@@ -594,23 +594,8 @@ let kmFilter = 'all'
 let settings = {}
 
 // ── STORAGE ───────────────────────────────────────────────────────────────────
-function loadSongs() {
-  try {
-    songs = JSON.parse(localStorage.getItem(STORE_KEY) || '[]')
-    // Migration: rename legacy id_user → user_id, id_app → app_id
-    let migrated = false
-    songs = songs.map(s => {
-      if (s.id_user !== undefined || s.id_app !== undefined) {
-        migrated = true
-        const { id_user, id_app, ...rest } = s
-        return { ...rest, user_id: s.user_id || id_user, app_id: s.app_id || id_app }
-      }
-      return s
-    })
-    if (migrated) saveSongs()
-  } catch { songs = [] }
-}
-function saveSongs() { localStorage.setItem(STORE_KEY, JSON.stringify(songs)) }
+// songs[] = in-memory only. Supabase is the single source of truth.
+// localStorage is used only for settings (theme, API keys), NOT for songs.
 function loadSettings() {
   try { settings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') } catch { settings = {} }
 }
@@ -762,13 +747,12 @@ document.getElementById('qa-inp').addEventListener('keydown', e => { if (e.key =
 document.getElementById('qa-save-btn').addEventListener('click', quickSave)
 document.getElementById('qa-ai-btn').addEventListener('click', quickAIAdd)
 
-function quickSave() {
+async function quickSave() {
   const val = document.getElementById('qa-inp').value.trim()
   if (!val) return
-  addSong({ title: val })
   document.getElementById('qa-inp').value = ''
-  renderList()
-  toast('✅ Lưu nháp: ' + val)
+  toast('⟳ Đang lưu...')
+  await addSong({ title: val })
 }
 
 async function quickAIAdd() {
@@ -779,9 +763,8 @@ async function quickAIAdd() {
   btn.disabled = true
   try {
     const data = await callGroqAutofill(val)
-    addSong(data)
+    await addSong(data)
     document.getElementById('qa-inp').value = ''
-    renderList()
     toast('✨ AI thêm: ' + (data.title||val))
   } catch(e) {
     toast('AI lỗi: ' + e.message, 'err')
@@ -791,7 +774,7 @@ async function quickAIAdd() {
   }
 }
 
-function addSong(data) {
+async function addSong(data) {
   const now = new Date().toISOString()
   const song = {
     id: genId(),
@@ -817,8 +800,7 @@ function addSong(data) {
     created_at: now,
     updated_at: now,
   }
-  songs.push(song)
-  saveSongs()
+  await upsertSong(song)
   return song
 }
 
@@ -892,27 +874,32 @@ function copyTitle(t) {
   toast('📋 Đã copy: ' + t)
 }
 
-function markSung(id) {
+async function markSung(id) {
   const s = songs.find(x=>x.id===id)
   if (!s) return
-  s.last_sung_at = new Date().toISOString()
-  s.sing_count = (s.sing_count||0) + 1
-  s.updated_at = new Date().toISOString()
-  saveSongs()
-  renderList()
-  openDetail(id)
-  toast('🎤 Ghi lại! Lần ' + s.sing_count)
-  push(true) // auto-push silently
+  const now = new Date().toISOString()
+  const updated = { ...s, last_sung_at: now, sing_count: (s.sing_count||0) + 1, updated_at: now }
+  closeDetail()
+  toast('🎤 Ghi lại! Lần ' + updated.sing_count)
+  await upsertSong(updated)
 }
 
-function deleteSong(id) {
+async function deleteSong(id) {
   if (!confirm('Xóa bài này?')) return
-  songs = songs.filter(x => x.id !== id)
-  saveSongs()
   closeDetail()
-  renderList()
-  toast('🗑 Đã xóa')
-  push(true) // auto-push silently
+  try {
+    const sb = requireSB()
+    const { error } = await sb.from('songs')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', USER_ID)
+      .eq('app_id', APP_ID)
+    if (error) throw new Error(error.message)
+    toast('🗑 Đã xóa')
+    await pull(true)
+  } catch(e) {
+    toast('❌ Xóa lỗi: ' + e.message, 'err')
+  }
 }
 
 // ── ADD / EDIT FORM ───────────────────────────────────────────────────────────
@@ -1005,62 +992,42 @@ function setKey(el) {
   document.querySelectorAll('.key-opt').forEach(e => e.classList.toggle('sel', e.dataset.k === formKey))
 }
 
-function saveSongForm() {
+async function saveSongForm() {
   const title = document.getElementById('f-title').value.trim()
   if (!title) { toast('Điền tên bài đã!', 'err'); return }
   const editId = document.getElementById('f-id').value
   const now = new Date().toISOString()
   const sigs = document.getElementById('f-sig').value.split('\n').map(s=>s.trim()).filter(Boolean)
+  const existing = editId ? songs.find(s => s.id === editId) : null
 
-  if (editId) {
-    const idx = songs.findIndex(s => s.id === editId)
-    if (idx >= 0) {
-      songs[idx] = {
-        ...songs[idx],
-        title,
-        artist: document.getElementById('f-artist').value.trim(),
-        artist_pref: document.getElementById('f-artist-pref').value.trim(),
-        composer: document.getElementById('f-composer').value.trim(),
-        genre: document.getElementById('f-genre').value,
-        moods: [...formMoods],
-        difficulty: formDiff,
-        voice_range: document.getElementById('f-voice').value,
-        key_transpose: formKey,
-        personal_notes: document.getElementById('f-notes').value.trim(),
-        self_rating: formRating,
-        status: formStatus,
-        signature_lyrics: sigs,
-        full_lyrics: document.getElementById('f-lyrics').value.trim(),
-        youtube_url: document.getElementById('f-yt').value.trim(),
-        updated_at: now,
-      }
-      saveSongs()
-      toast('✅ Đã cập nhật!')
-      push(true) // auto-push silently after edit
-    }
-  } else {
-    addSong({
-      title,
-      artist: document.getElementById('f-artist').value.trim(),
-      artist_pref: document.getElementById('f-artist-pref').value.trim(),
-      composer: document.getElementById('f-composer').value.trim(),
-      genre: document.getElementById('f-genre').value,
-      moods: [...formMoods],
-      difficulty: formDiff,
-      voice_range: document.getElementById('f-voice').value,
-      key_transpose: formKey,
-      personal_notes: document.getElementById('f-notes').value.trim(),
-      self_rating: formRating,
-      status: formStatus,
-      signature_lyrics: sigs,
-      full_lyrics: document.getElementById('f-lyrics').value.trim(),
-      youtube_url: document.getElementById('f-yt').value.trim(),
-    })
-    toast('🎵 Thêm bài thành công!')
-    push(true) // auto-push silently after add
+  const song = {
+    id: editId || genId(),
+    user_id: USER_ID,
+    app_id: APP_ID,
+    title,
+    artist: document.getElementById('f-artist').value.trim(),
+    artist_pref: document.getElementById('f-artist-pref').value.trim(),
+    composer: document.getElementById('f-composer').value.trim(),
+    genre: document.getElementById('f-genre').value,
+    moods: [...formMoods],
+    difficulty: formDiff,
+    voice_range: document.getElementById('f-voice').value,
+    key_transpose: formKey,
+    personal_notes: document.getElementById('f-notes').value.trim(),
+    self_rating: formRating,
+    status: formStatus,
+    signature_lyrics: sigs,
+    full_lyrics: document.getElementById('f-lyrics').value.trim(),
+    youtube_url: document.getElementById('f-yt').value.trim(),
+    last_sung_at: existing?.last_sung_at || null,
+    sing_count: existing?.sing_count || 0,
+    created_at: existing?.created_at || now,
+    updated_at: now,
   }
+
   closeSongModal()
-  renderList()
+  toast(editId ? '✅ Đang lưu...' : '🎵 Đang thêm...')
+  await upsertSong(song)
 }
 
 function editSong(id) {
@@ -1236,127 +1203,68 @@ function saveSupabaseConfig() {
   if (url) settings.sb_url = url
   if (key && key !== '••••••••') settings.sb_key = key
   saveSettingsStore()
-  toast('✅ Đã lưu Supabase config!')
+  toast('✅ Đã lưu! Đang reload...')
+  setTimeout(() => location.reload(), 800)
 }
 
-// ── SUPABASE SYNC ─────────────────────────────────────────────────────────────
-document.getElementById('btn-sync').addEventListener('click', () => syncBoth())
-
-// Shared: init Supabase client (lazy-loads CDN once)
-async function getSupabaseClient() {
+// ── SUPABASE ──────────────────────────────────────────────────────────────────
+const supabase = (() => {
   const url = settings.sb_url, key = settings.sb_key
-  if (!url || !key) throw new Error('Chưa có Supabase config! Vào Cài đặt để thêm.')
-  if (!window.supabase) {
-    await new Promise((res, rej) => {
-      const s = document.createElement('script')
-      s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js'
-      s.onload = res; s.onerror = () => rej(new Error('Không load được Supabase SDK'))
-      document.head.appendChild(s)
-    })
-  }
-  // Cache client on window to avoid re-creating with same config
-  if (!window._sbClient || window._sbUrl !== url) {
-    window._sbClient = window.supabase.createClient(url, key)
-    window._sbUrl = url
-  }
-  return window._sbClient
+  if (!url || !key) return null
+  return window.supabase.createClient(url, key)
+})()
+
+document.getElementById('btn-sync').addEventListener('click', () => pull(false))
+
+function requireSB() {
+  if (!supabase) throw new Error('Chưa có Supabase config! Vào Cài đặt → Lưu → reload.')
+  return supabase
 }
 
-// ID-based merge: last-write-wins on updated_at
-function mergeSongs(localSongs, remoteSongs) {
-  const map = {}
-  ;[...localSongs, ...remoteSongs].forEach(s => {
-    if (!s.id) return
-    const existing = map[s.id]
-    if (!existing) {
-      map[s.id] = s
-    } else {
-      if (new Date(s.updated_at || 0) > new Date(existing.updated_at || 0)) {
-        map[s.id] = s
-      }
-    }
-  })
-  return Object.values(map)
-}
-
-// PUSH: local → Supabase
-let _pushTimer = null
-async function push(silent = false) {
-  // Debounce: batch rapid saves into one push after 1.5s
-  clearTimeout(_pushTimer)
-  _pushTimer = setTimeout(async () => {
-    const log = document.getElementById('sync-log')
-    const setLog = m => { if (log) log.textContent = m }
-    try {
-      const client = await getSupabaseClient()
-      const now = new Date().toISOString()
-      const songsToPush = songs
-        .filter(s => s.user_id === USER_ID && s.app_id === APP_ID)
-        .map(s => ({
-          ...s,
-          user_id: USER_ID,
-          app_id: APP_ID,
-          updated_at: s.updated_at || now,
-        }))
-      if (!songsToPush.length) return
-      const { error } = await client.from('songs').upsert(songsToPush, { onConflict: 'id' })
-      if (error) throw new Error(error.message)
-      settings.last_synced = now
-      saveSettingsStore()
-      if (!silent) { setLog(`⬆ Pushed ${songsToPush.length} bài`); toast('⬆ Đã push!') }
-    } catch (e) {
-      if (!silent) { document.getElementById('sync-log').textContent = '❌ Push: ' + e.message; toast(e.message, 'err') }
-    }
-  }, silent ? 1500 : 0)
-}
-
-// PULL: Supabase → merge with local
-let _pullInProgress = false
+// PULL — fetch all → replace songs[] completely (Supabase là source of truth)
+let _pulling = false
 async function pull(silent = false) {
-  if (_pullInProgress) return
-  _pullInProgress = true
+  if (_pulling) return
+  _pulling = true
   const log = document.getElementById('sync-log')
   const setLog = m => { if (log) log.textContent = m }
   try {
-    const client = await getSupabaseClient()
-    if (!silent) setLog('⬇ Đang pull...')
-    const { data, error } = await client.from('songs')
+    const sb = requireSB()
+    if (!silent) setLog('⬇ Đang tải...')
+    const { data, error } = await sb
+      .from('songs')
       .select('*')
       .eq('user_id', USER_ID)
       .eq('app_id', APP_ID)
+      .order('updated_at', { ascending: false })
     if (error) throw new Error(error.message)
-    const remote = data || []
-    const local = songs.filter(s => s.user_id === USER_ID && s.app_id === APP_ID)
-    const otherApps = songs.filter(s => s.user_id !== USER_ID || s.app_id !== APP_ID)
-    // Merge: never append blindly, never overwrite entirely
-    const merged = mergeSongs(local, remote)
-    songs = [...otherApps, ...merged]
-    saveSongs()
+    songs = data || []
     renderList()
     settings.last_synced = new Date().toISOString()
     saveSettingsStore()
-    if (!silent) { setLog(`⬇ Pulled — ${merged.length} bài sau merge`); toast('⬇ Đã pull!') }
+    if (!silent) { setLog(`✅ Loaded ${songs.length} bài`); toast(`✅ ${songs.length} bài`) }
   } catch (e) {
-    if (!silent) { setLog('❌ Pull: ' + e.message); toast(e.message, 'err') }
+    if (!silent) { setLog('❌ ' + e.message); toast(e.message, 'err') }
   } finally {
-    _pullInProgress = false
+    _pulling = false
   }
 }
 
-// Manual buttons in Settings
-async function doSync(direction = 'both') {
-  if (direction === 'push') { await push(false); return }
-  if (direction === 'pull') { await pull(false); return }
-  await pull(false)
-  await push(false)
-}
-
-async function syncBoth() {
-  document.getElementById('btn-sync').textContent = '⟳'
-  try { await pull(false); await push(false) } finally {
-    document.getElementById('btn-sync').textContent = '⟳'
+// UPSERT one song → pull
+async function upsertSong(song) {
+  try {
+    const sb = requireSB()
+    const record = { ...song, user_id: USER_ID, app_id: APP_ID }
+    const { error } = await sb.from('songs').upsert(record, { onConflict: 'id' })
+    if (error) throw new Error(error.message)
+    await pull(true)
+  } catch (e) {
+    toast('❌ Lưu lỗi: ' + e.message, 'err')
   }
 }
+
+// Manual sync button in Settings
+async function doSync(direction = 'both') { await pull(false) }
 
 // ── EXPORT / IMPORT ───────────────────────────────────────────────────────────
 function doExport() {
@@ -1376,7 +1284,7 @@ function doImport(e) {
   const file = e.target.files?.[0]
   if (!file) return
   const reader = new FileReader()
-  reader.onload = ev => {
+  reader.onload = async ev => {
     try {
       const data = JSON.parse(ev.target.result)
       if (!data.songs || !Array.isArray(data.songs)) throw new Error('File không hợp lệ')
@@ -1386,21 +1294,17 @@ function doImport(e) {
       if (data.app_id && data.app_id !== APP_ID) {
         if (!confirm(`File này thuộc app "${data.app_id}", không phải "${APP_ID}". Vẫn import?`)) return
       }
-      if (!confirm(`Import ${data.songs.length} bài? Bài trùng ID sẽ bị ghi đè.`)) return
-      let imported = 0
-      for (const s of data.songs) {
-        // Migrate legacy naming + stamp correct user+app (after spread to override any old values)
-        const { id_user, id_app, ...rest } = s
-        const song = { ...rest, user_id: USER_ID, app_id: APP_ID }
-        if (!song.id) song.id = genId()
-        const idx = songs.findIndex(x => x.id === song.id)
-        if (idx >= 0) songs[idx] = song
-        else songs.push(song)
-        imported++
-      }
-      saveSongs()
-      renderList()
-      toast(`✅ Import ${imported} bài!`)
+      if (!confirm(`Import ${data.songs.length} bài lên Supabase?`)) return
+      toast('⟳ Đang import...')
+      const sb = requireSB()
+      const records = data.songs.map(s => {
+        const { id_user, id_app, ...rest } = s  // strip legacy fields
+        return { ...rest, user_id: USER_ID, app_id: APP_ID, id: s.id || genId() }
+      })
+      const { error } = await sb.from('songs').upsert(records, { onConflict: 'id' })
+      if (error) throw new Error(error.message)
+      await pull(true)
+      toast(`✅ Import ${records.length} bài!`)
     } catch(err) {
       toast('❌ ' + err.message, 'err')
     }
@@ -1419,21 +1323,7 @@ document.getElementById('modal-detail').addEventListener('click', e => {
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 function init() {
-  loadSongs()
   loadSettings()
-
-  // Seed sample data if empty
-  if (!songs.some(s=>s.user_id===USER_ID&&s.app_id===APP_ID)) {
-    const now = new Date().toISOString()
-    const seed = [
-      { title:'Người Ta Đâu Có Thương Mình', artist:'Đàm Vĩnh Hưng', genre:'Pop Việt', moods:['buon','to_tinh'], difficulty:3, self_rating:5, status:'bai_tu', key_transpose:'-2', personal_notes:'Đoạn bridge dễ hụt hơi', signature_lyrics:['Người ta đâu có thương mình như mình thương người ta...'], last_sung_at: new Date(Date.now()-2*86400000).toISOString(), sing_count:8 },
-      { title:'Thằng Hầu', artist:'Hoài Linh', genre:'Nhạc Vàng', moods:['nhau','quay'], difficulty:2, self_rating:4, status:'bai_tu', key_transpose:'+1', sing_count:12, last_sung_at: new Date(Date.now()-86400000).toISOString() },
-      { title:'Trái Tim Không Ngủ Yên', artist:'Bằng Kiều', genre:'Nhạc Trẻ', moods:['buon','chill'], difficulty:4, self_rating:3, status:'hat_on', key_transpose:'-1', personal_notes:'Lên cao khó, cần khởi giọng kỹ', sing_count:3, last_sung_at: new Date(Date.now()-60*86400000).toISOString() },
-      { title:'Yêu Thương Mong Manh', artist:'Ngọc Sơn', genre:'Bolero', moods:['buon'], difficulty:3, self_rating:3, status:'chua_thuoc', key_transpose:'0', sing_count:0 },
-    ].map((d,i) => ({ id: genId(), user_id:USER_ID, app_id:APP_ID, artist_pref:'', composer:'', voice_range:'', youtube_url:'', full_lyrics:'', signature_lyrics:[], personal_notes:'', moods:[], ...d, created_at:now, updated_at:now, last_sung_at:d.last_sung_at||null }))
-    songs.push(...seed)
-    saveSongs()
-  }
 
   // Theme
   const theme = settings.theme || 'dark'
@@ -1446,12 +1336,12 @@ function init() {
     setTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark')
   })
 
-  renderList()
+  renderList() // renders empty state initially
 
-  // Auto-pull on load (silent — no toast, no error popup if offline)
+  // Load from Supabase — if not configured, stays empty with no error
   pull(true)
 
-  // Auto-pull when tab becomes visible (catches changes from other devices)
+  // Re-pull when tab regains focus (picks up changes from other devices)
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') pull(true)
   })
