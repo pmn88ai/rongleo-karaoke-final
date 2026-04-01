@@ -788,7 +788,7 @@ async function addSong(data) {
     moods: data.moods || [],
     difficulty: data.difficulty || 0,
     voice_range: data.voice_range || '',
-    key_transpose: data.key_transpose || '0',
+    key_transpose: Number(data.key_transpose || 0),
     personal_notes: data.personal_notes || '',
     self_rating: data.self_rating || 0,
     status: data.status || 'chua_thuoc',
@@ -1012,7 +1012,7 @@ async function saveSongForm() {
     moods: [...formMoods],
     difficulty: formDiff,
     voice_range: document.getElementById('f-voice').value,
-    key_transpose: formKey,
+    key_transpose: Number(formKey) || 0,
     personal_notes: document.getElementById('f-notes').value.trim(),
     self_rating: formRating,
     status: formStatus,
@@ -1203,23 +1203,30 @@ function saveSupabaseConfig() {
   if (url) settings.sb_url = url
   if (key && key !== '••••••••') settings.sb_key = key
   saveSettingsStore()
+  _sb = null // reset trước khi reload
   toast('✅ Đã lưu! Đang reload...')
   setTimeout(() => location.reload(), 800)
 }
 
 // ── SUPABASE ──────────────────────────────────────────────────────────────────
-const supabase = (() => {
+// Lazy init: getSB() chỉ chạy sau loadSettings() nên settings đã có giá trị
+let _sb = null
+
+function getSB() {
+  if (_sb) return _sb
   const url = settings.sb_url, key = settings.sb_key
   if (!url || !key) return null
-  return window.supabase.createClient(url, key)
-})()
-
-document.getElementById('btn-sync').addEventListener('click', () => pull(false))
+  _sb = window.supabase.createClient(url, key)
+  return _sb
+}
 
 function requireSB() {
-  if (!supabase) throw new Error('Chưa có Supabase config! Vào Cài đặt → Lưu → reload.')
-  return supabase
+  const sb = getSB()
+  if (!sb) throw new Error('Chưa có Supabase config! Vào Cài đặt → Lưu → reload.')
+  return sb
 }
+
+document.getElementById('btn-sync').addEventListener('click', () => pull(false))
 
 // PULL — fetch all → replace songs[] completely (Supabase là source of truth)
 let _pulling = false
