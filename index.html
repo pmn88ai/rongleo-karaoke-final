@@ -902,6 +902,7 @@ function markSung(id) {
   renderList()
   openDetail(id)
   toast('🎤 Ghi lại! Lần ' + s.sing_count)
+  push(true) // auto-push silently
 }
 
 function deleteSong(id) {
@@ -911,6 +912,7 @@ function deleteSong(id) {
   closeDetail()
   renderList()
   toast('🗑 Đã xóa')
+  push(true) // auto-push silently
 }
 
 // ── ADD / EDIT FORM ───────────────────────────────────────────────────────────
@@ -1034,6 +1036,7 @@ function saveSongForm() {
       }
       saveSongs()
       toast('✅ Đã cập nhật!')
+      push(true) // auto-push silently after edit
     }
   } else {
     addSong({
@@ -1054,6 +1057,7 @@ function saveSongForm() {
       youtube_url: document.getElementById('f-yt').value.trim(),
     })
     toast('🎵 Thêm bài thành công!')
+    push(true) // auto-push silently after add
   }
   closeSongModal()
   renderList()
@@ -1236,68 +1240,120 @@ function saveSupabaseConfig() {
 }
 
 // ── SUPABASE SYNC ─────────────────────────────────────────────────────────────
-document.getElementById('btn-sync').addEventListener('click', () => doSync('both'))
+document.getElementById('btn-sync').addEventListener('click', () => syncBoth())
 
-async function doSync(direction = 'both') {
+// Shared: init Supabase client (lazy-loads CDN once)
+async function getSupabaseClient() {
   const url = settings.sb_url, key = settings.sb_key
-  if (!url || !key) { toast('Chưa có Supabase config!','err'); return }
-  const log = document.getElementById('sync-log')
-  const setLog = m => { if(log) log.textContent = m }
+  if (!url || !key) throw new Error('Chưa có Supabase config! Vào Cài đặt để thêm.')
+  if (!window.supabase) {
+    await new Promise((res, rej) => {
+      const s = document.createElement('script')
+      s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js'
+      s.onload = res; s.onerror = () => rej(new Error('Không load được Supabase SDK'))
+      document.head.appendChild(s)
+    })
+  }
+  // Cache client on window to avoid re-creating with same config
+  if (!window._sbClient || window._sbUrl !== url) {
+    window._sbClient = window.supabase.createClient(url, key)
+    window._sbUrl = url
+  }
+  return window._sbClient
+}
 
-  try {
-    document.getElementById('btn-sync').textContent = '⟳'
-    setLog('Đang kết nối...')
-
-    // Init Supabase inline (UMD already loaded if available)
-    if (!window.supabase) {
-      // Load Supabase CDN dynamically
-      await new Promise((res,rej) => {
-        const s = document.createElement('script')
-        s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js'
-        s.onload = res; s.onerror = rej
-        document.head.appendChild(s)
-      })
-    }
-
-    const client = window.supabase.createClient(url, key)
-
-    if (direction === 'push' || direction === 'both') {
-      setLog('Đang push...')
-      const mySongs = songs
-        .filter(s => s.user_id===USER_ID && s.app_id===APP_ID)
-        .map(s => ({ ...s, user_id: USER_ID, app_id: APP_ID })) // guarantee correct fields
-      const { error } = await client.from('songs').upsert(mySongs, { onConflict: 'id' })
-      if (error) throw new Error('Push lỗi: ' + error.message)
-      setLog(`Đã push ${mySongs.length} bài`)
-    }
-
-    if (direction === 'pull' || direction === 'both') {
-      setLog('Đang pull...')
-      const { data, error } = await client.from('songs')
-        .select('*')
-        .eq('user_id', USER_ID)
-        .eq('app_id', APP_ID)
-      if (error) throw new Error('Pull lỗi: ' + error.message)
-      if (data?.length) {
-        // Merge: latest updated_at wins
-        for (const srv of data) {
-          const idx = songs.findIndex(s => s.id === srv.id)
-          if (idx < 0) songs.push(srv)
-          else if (new Date(srv.updated_at) > new Date(songs[idx].updated_at)) songs[idx] = srv
-        }
-        saveSongs()
-        renderList()
+// ID-based merge: last-write-wins on updated_at
+function mergeSongs(localSongs, remoteSongs) {
+  const map = {}
+  ;[...localSongs, ...remoteSongs].forEach(s => {
+    if (!s.id) return
+    const existing = map[s.id]
+    if (!existing) {
+      map[s.id] = s
+    } else {
+      if (new Date(s.updated_at || 0) > new Date(existing.updated_at || 0)) {
+        map[s.id] = s
       }
-      setLog(`Sync xong! ${data?.length||0} bài từ server.`)
     }
+  })
+  return Object.values(map)
+}
 
-    toast('✅ Sync xong!')
+// PUSH: local → Supabase
+let _pushTimer = null
+async function push(silent = false) {
+  // Debounce: batch rapid saves into one push after 1.5s
+  clearTimeout(_pushTimer)
+  _pushTimer = setTimeout(async () => {
+    const log = document.getElementById('sync-log')
+    const setLog = m => { if (log) log.textContent = m }
+    try {
+      const client = await getSupabaseClient()
+      const now = new Date().toISOString()
+      const songsToPush = songs
+        .filter(s => s.user_id === USER_ID && s.app_id === APP_ID)
+        .map(s => ({
+          ...s,
+          user_id: USER_ID,
+          app_id: APP_ID,
+          updated_at: s.updated_at || now,
+        }))
+      if (!songsToPush.length) return
+      const { error } = await client.from('songs').upsert(songsToPush, { onConflict: 'id' })
+      if (error) throw new Error(error.message)
+      settings.last_synced = now
+      saveSettingsStore()
+      if (!silent) { setLog(`⬆ Pushed ${songsToPush.length} bài`); toast('⬆ Đã push!') }
+    } catch (e) {
+      if (!silent) { document.getElementById('sync-log').textContent = '❌ Push: ' + e.message; toast(e.message, 'err') }
+    }
+  }, silent ? 1500 : 0)
+}
+
+// PULL: Supabase → merge with local
+let _pullInProgress = false
+async function pull(silent = false) {
+  if (_pullInProgress) return
+  _pullInProgress = true
+  const log = document.getElementById('sync-log')
+  const setLog = m => { if (log) log.textContent = m }
+  try {
+    const client = await getSupabaseClient()
+    if (!silent) setLog('⬇ Đang pull...')
+    const { data, error } = await client.from('songs')
+      .select('*')
+      .eq('user_id', USER_ID)
+      .eq('app_id', APP_ID)
+    if (error) throw new Error(error.message)
+    const remote = data || []
+    const local = songs.filter(s => s.user_id === USER_ID && s.app_id === APP_ID)
+    const otherApps = songs.filter(s => s.user_id !== USER_ID || s.app_id !== APP_ID)
+    // Merge: never append blindly, never overwrite entirely
+    const merged = mergeSongs(local, remote)
+    songs = [...otherApps, ...merged]
+    saveSongs()
+    renderList()
     settings.last_synced = new Date().toISOString()
     saveSettingsStore()
-  } catch(e) {
-    setLog('❌ ' + e.message)
-    toast(e.message, 'err')
+    if (!silent) { setLog(`⬇ Pulled — ${merged.length} bài sau merge`); toast('⬇ Đã pull!') }
+  } catch (e) {
+    if (!silent) { setLog('❌ Pull: ' + e.message); toast(e.message, 'err') }
   } finally {
+    _pullInProgress = false
+  }
+}
+
+// Manual buttons in Settings
+async function doSync(direction = 'both') {
+  if (direction === 'push') { await push(false); return }
+  if (direction === 'pull') { await pull(false); return }
+  await pull(false)
+  await push(false)
+}
+
+async function syncBoth() {
+  document.getElementById('btn-sync').textContent = '⟳'
+  try { await pull(false); await push(false) } finally {
     document.getElementById('btn-sync').textContent = '⟳'
   }
 }
@@ -1391,6 +1447,14 @@ function init() {
   })
 
   renderList()
+
+  // Auto-pull on load (silent — no toast, no error popup if offline)
+  pull(true)
+
+  // Auto-pull when tab becomes visible (catches changes from other devices)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') pull(true)
+  })
 }
 
 init()
